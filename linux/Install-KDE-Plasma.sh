@@ -47,7 +47,7 @@ printf '  Log: %s\n\n' "$LOG_PATH"
 write_section "0. Pre-flight Checks"
 
 # Must be root
-if [[ $EUID -ne 0 ]]; then
+if [[ $(id -u) -ne 0 ]]; then
     write_fail "This script must be run as root (sudo)"
     exit 1
 fi

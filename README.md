@@ -17,3 +17,20 @@ A collection of system administration and optimisation scripts, organised by pla
 | Script | Description |
 |--------|-------------|
 | [`Install-KDE-Plasma.sh`](linux/Install-KDE-Plasma.sh) | Installs KDE Plasma alongside GNOME on Ubuntu 25.10. Keeps GDM as the display manager, configures cross-toolkit theming, per-DE app associations, and autostart conflict prevention. |
+
+## Usage
+
+All shell scripts use a `#!/usr/bin/env bash` shebang. Run them with `./` (not `sh`) so the correct interpreter is used:
+
+```bash
+# Linux
+chmod +x linux/Install-KDE-Plasma.sh
+sudo ./linux/Install-KDE-Plasma.sh
+```
+
+```powershell
+# Windows (run in an elevated PowerShell)
+.\windows\Optimise-Win11-OfficeVM.ps1
+```
+
+> **Note:** Do not run `.sh` scripts with `sh script.sh` — they require Bash and will fail under other shells.
