@@ -11,7 +11,7 @@ Scriptorium is a collection of system optimization and administration scripts, o
 ```
 scriptorium/
 ├── windows/    # PowerShell scripts for Windows optimization
-├── linux/      # (empty) Future Linux scripts
+├── linux/      # Bash scripts for Linux (Ubuntu)
 ```
 
 ## Script Conventions
@@ -27,12 +27,21 @@ scriptorium/
 - Scripts create system restore points before making changes
 - Output goes to both console (color-coded) and log files on Desktop
 
+### Bash Scripts (linux/)
+
+- Scripts use `#!/usr/bin/env bash` with `set -euo pipefail`
+- Helper functions follow the same pattern: `write_section`, `write_ok`, `write_skip`, `write_fail`
+- Scripts must be **re-runnable** (idempotent) — check before writing, skip already-applied changes, and only run install/update steps when needed
+- Use `$REAL_USER` / `$REAL_HOME` (from `$SUDO_USER`) for user-owned files when running as root
+- Use `id -u` instead of `$EUID` for POSIX compatibility
+
 ### Adding New Scripts
 
 - Place platform-specific scripts in their respective directory (`windows/`, `linux/`)
-- Follow the section-based structure with numbered sections and `Write-Section` headers
+- Follow the section-based structure with numbered sections and `write_section` headers
 - Use the established helper functions for consistent logging and error handling
-- Wrap operations in try-catch to report success/skip/fail rather than crashing
+- Wrap operations in try-catch (PowerShell) or conditional checks (Bash) to report success/skip/fail rather than crashing
+- Linux scripts must be re-runnable — never exit early in a way that skips configuration sections
 
 ## Git Workflow
 
