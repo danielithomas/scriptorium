@@ -196,16 +196,16 @@ fi
 # ---------------------------------------------------------------------------
 write_section "5. Cross-Toolkit Theming"
 
-# GTK apps in Plasma: kde-gtk-config + breeze-gtk
-if apt-get install -y kde-gtk-config breeze-gtk; then
-    write_ok "kde-gtk-config and breeze-gtk installed (GTK apps in Plasma)"
+# GTK apps in Plasma: kde-config-gtk-style + breeze-gtk-theme
+if apt-get install -y kde-config-gtk-style breeze-gtk-theme; then
+    write_ok "kde-config-gtk-style and breeze-gtk-theme installed (GTK apps in Plasma)"
 else
     write_fail "Failed to install GTK theming packages"
 fi
 
 # Qt apps in GNOME: kvantum
-if apt-get install -y qt6-style-kvantum kvantum; then
-    write_ok "qt6-style-kvantum and kvantum installed (Qt apps in GNOME)"
+if apt-get install -y qt6-style-kvantum qt6-style-kvantum-themes; then
+    write_ok "qt6-style-kvantum and themes installed (Qt apps in GNOME)"
 else
     write_fail "Failed to install Kvantum packages"
 fi
