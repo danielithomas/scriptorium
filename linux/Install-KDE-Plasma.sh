@@ -68,23 +68,28 @@ else
 fi
 
 # Check if KDE is already installed
+KDE_ALREADY_INSTALLED=false
 if dpkg-query -W -f='${Status}' kde-standard 2>/dev/null | grep -q "install ok installed"; then
-    write_skip "kde-standard is already installed — nothing to do"
-    exit 0
-fi
-write_ok "kde-standard not yet installed"
-
-# Check internet connectivity
-if ping -c 1 -W 5 archive.ubuntu.com &>/dev/null; then
-    write_ok "Internet connectivity confirmed"
+    KDE_ALREADY_INSTALLED=true
+    write_skip "kde-standard is already installed — skipping install sections"
 else
-    write_fail "Cannot reach archive.ubuntu.com — check your network"
-    exit 1
+    write_ok "kde-standard not yet installed"
+fi
+
+# Check internet connectivity (only needed for install)
+if [[ "$KDE_ALREADY_INSTALLED" == false ]]; then
+    if ping -c 1 -W 5 archive.ubuntu.com &>/dev/null; then
+        write_ok "Internet connectivity confirmed"
+    else
+        write_fail "Cannot reach archive.ubuntu.com — check your network"
+        exit 1
+    fi
 fi
 
 # ---------------------------------------------------------------------------
 # SECTION 1: System Update
 # ---------------------------------------------------------------------------
+if [[ "$KDE_ALREADY_INSTALLED" == false ]]; then
 write_section "1. System Update"
 
 if apt-get update -y && apt-get upgrade -y; then
@@ -93,10 +98,12 @@ else
     write_fail "System update failed"
     exit 1
 fi
+fi
 
 # ---------------------------------------------------------------------------
 # SECTION 2: Install KDE Plasma
 # ---------------------------------------------------------------------------
+if [[ "$KDE_ALREADY_INSTALLED" == false ]]; then
 write_section "2. Install KDE Plasma"
 
 # Pre-seed debconf so the installer keeps GDM3 (avoids interactive prompt)
@@ -124,6 +131,7 @@ if dpkg-query -W -f='${Status}' gdm3 2>/dev/null | grep -q "install ok installed
     write_ok "GDM3 remains the active display manager"
 else
     write_skip "GDM3 not found — display manager may have changed"
+fi
 fi
 
 # ---------------------------------------------------------------------------
