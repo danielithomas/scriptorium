@@ -1,0 +1,21 @@
+services:
+  image-gen:
+    build: .
+    container_name: image-gen
+    ports:
+      - "8100:8100"
+    volumes:
+      - ${MODELS_PATH:-/data/models}:/data/models
+      - ./server.py:/app/server.py:ro
+    devices:
+      - /dev/dri:/dev/dri    # Intel GPU passthrough (remove if no iGPU)
+    environment:
+      - MODEL_PATH=/data/models/sd-v1-5-openvino
+      - OV_DEVICE=${OV_DEVICE:-CPU}    # CPU, GPU, or AUTO
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-sd15}
+    restart: unless-stopped
+    # group_add: Set render/video group IDs for your host if using GPU
+    # Run: getent group render video | cut -d: -f3
+    # group_add:
+    #   - "RENDER_GID"
+    #   - "VIDEO_GID"
