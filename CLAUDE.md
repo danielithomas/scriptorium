@@ -13,7 +13,8 @@ scriptorium/
 ├── windows/    # PowerShell scripts for Windows optimization
 ├── linux/      # Bash scripts for Linux (Ubuntu)
 ├── docker/     # Docker Compose stacks and services
-│   └── image-gen/  # Multi-model image generation API (OpenVINO)
+│   ├── image-gen/       # Image generation API — OpenVINO (Intel CPU/iGPU/Arc)
+│   └── image-gen-cuda/  # Image generation API — PyTorch/CUDA (NVIDIA GPU)
 ```
 
 ## Script Conventions
