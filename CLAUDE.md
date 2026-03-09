@@ -12,6 +12,9 @@ Scriptorium is a collection of system optimization and administration scripts, o
 scriptorium/
 ├── windows/    # PowerShell scripts for Windows optimization
 ├── linux/      # Bash scripts for Linux (Ubuntu)
+├── docker/     # Docker Compose stacks and services
+│   ├── image-gen/       # Image generation API — OpenVINO (Intel CPU/iGPU/Arc)
+│   └── image-gen-cuda/  # Image generation API — PyTorch/CUDA (NVIDIA GPU)
 ```
 
 ## Script Conventions
@@ -43,7 +46,16 @@ scriptorium/
 - Wrap operations in try-catch (PowerShell) or conditional checks (Bash) to report success/skip/fail rather than crashing
 - Linux scripts must be re-runnable — never exit early in a way that skips configuration sections
 
+### Docker Stacks (docker/)
+
+- Each stack gets its own directory under `docker/`
+- Every stack must include: `compose.yaml`, `Dockerfile` (if custom), `README.md`
+- Use environment variables with defaults for host-specific paths (e.g., `${MODELS_PATH:-/data/models}`)
+- **No PII** — this is a public repo. No hostnames, IPs, usernames, or identifying information
+- Group IDs, device paths, and host-specific config should be commented examples, not hardcoded values
+- README must include: quick start, model/data setup, API docs, environment variables
+
 ## Git Workflow
 
 - `main` is the default branch
-- `dev` branch for development
+- `dev` branch for development — all new work goes here via PR

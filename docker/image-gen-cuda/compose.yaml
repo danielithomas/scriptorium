@@ -1,0 +1,21 @@
+services:
+  image-gen:
+    build: .
+    container_name: image-gen-cuda
+    ports:
+      - "8100:8100"
+    volumes:
+      - ${MODELS_PATH:-./models}:/data/models
+      - ./server.py:/app/server.py:ro
+    environment:
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-sd15}
+      - TORCH_DEVICE=${TORCH_DEVICE:-cuda}        # cuda, cpu
+      - HALF_PRECISION=${HALF_PRECISION:-true}     # fp16 on GPU (faster, less VRAM)
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
