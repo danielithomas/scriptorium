@@ -30,15 +30,32 @@ Docker Desktop for Windows supports GPU passthrough natively with WSL2:
 ## Quick Start
 
 ```bash
-# 1. (Optional) Set models path for persistent storage
-export MODELS_PATH=D:/models  # or /data/models on Linux
+# 1. Install Python dependencies for the download script
+pip install diffusers transformers accelerate torch safetensors
 
-# 2. Build and run
-docker compose up -d --build
+# 2. Download models to your chosen directory
+python download-models.py D:\SD\models          # required models only (~5GB)
+python download-models.py D:\SD\models --all    # all models (~41GB)
 
-# 3. First run will download the default model (~5GB for SD 1.5)
-# Subsequent runs use local cache
+# 3. Build and run
+MODELS_PATH=D:\SD\models docker compose up -d --build
 ```
+
+### Download Script
+
+```bash
+# List available models
+python download-models.py --list
+
+# Download specific models
+python download-models.py D:\SD\models --models sd15 dreamshaper-8 sdxl-turbo
+
+# Re-download / update a model
+python download-models.py D:\SD\models --models sd15 --force
+```
+
+The script skips models that already exist locally. Models are saved in standard
+HuggingFace diffusers format — the server auto-detects local models on startup.
 
 ## Model Registry
 
