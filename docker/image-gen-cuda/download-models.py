@@ -27,6 +27,7 @@ import urllib.request
 # ─── Model Registry ───────────────────────────────────────────────────────────
 
 MODELS = {
+    # ── Core / Required ──────────────────────────────────────────────────────
     "sd-v1-5": {
         "hf_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
         "pipeline": "StableDiffusionPipeline",
@@ -34,39 +35,87 @@ MODELS = {
         "size_approx": "~5GB",
         "required": True,
     },
-    "dreamshaper-8": {
-        "hf_id": "Lykon/dreamshaper-8",
-        "pipeline": "StableDiffusionPipeline",
-        "description": "DreamShaper 8 — high quality, SD 1.5 based",
+    "sd15-inpainting": {
+        "hf_id": "runwayml/stable-diffusion-inpainting",
+        "pipeline": "StableDiffusionInpaintPipeline",
+        "description": "SD 1.5 Inpainting — for outpainting/inpainting",
         "size_approx": "~5GB",
         "required": False,
     },
+
+    # ── SD 1.5 Fine-tunes (high quality) ─────────────────────────────────────
+    "dreamshaper-8": {
+        "hf_id": "Lykon/dreamshaper-8",
+        "pipeline": "StableDiffusionPipeline",
+        "description": "DreamShaper 8 — photorealistic + fantasy, excellent all-rounder",
+        "size_approx": "~5GB",
+        "required": False,
+    },
+    "realistic-vision-6": {
+        "hf_id": "SG161222/Realistic_Vision_V6.0_B1_noVAE",
+        "pipeline": "StableDiffusionPipeline",
+        "description": "Realistic Vision v6 — best SD1.5 photorealism model",
+        "size_approx": "~5GB",
+        "required": False,
+    },
+
+    # ── SDXL Models ───────────────────────────────────────────────────────────
     "sdxl-turbo": {
         "hf_id": "stabilityai/sdxl-turbo",
         "pipeline": "StableDiffusionXLPipeline",
-        "description": "SDXL Turbo — fast, 4 steps",
+        "description": "SDXL Turbo — fast 4-step generation",
         "size_approx": "~7GB",
         "required": False,
     },
     "sdxl-base": {
         "hf_id": "stabilityai/stable-diffusion-xl-base-1.0",
         "pipeline": "StableDiffusionXLPipeline",
-        "description": "SDXL 1.0 Base — highest quality SD model",
+        "description": "SDXL 1.0 Base — highest quality SDXL, use with refiner",
         "size_approx": "~7GB",
         "required": False,
     },
+    "sdxl-refiner": {
+        "hf_id": "stabilityai/stable-diffusion-xl-refiner-1.0",
+        "pipeline": "StableDiffusionXLImg2ImgPipeline",
+        "description": "SDXL Refiner — post-process SDXL base outputs for added detail",
+        "size_approx": "~7GB",
+        "required": False,
+    },
+    "juggernaut-xl": {
+        "hf_id": "RunDiffusion/Juggernaut-XL-v9",
+        "pipeline": "StableDiffusionXLPipeline",
+        "description": "Juggernaut XL v9 — best SDXL photorealism, exceptional detail",
+        "size_approx": "~7GB",
+        "required": False,
+    },
+    "dreamshaper-xl": {
+        "hf_id": "Lykon/dreamshaper-xl-1-0",
+        "pipeline": "StableDiffusionXLPipeline",
+        "description": "DreamShaper XL — SDXL fine-tune, versatile photorealistic+artistic",
+        "size_approx": "~7GB",
+        "required": False,
+    },
+    "realvis-xl-4": {
+        "hf_id": "SG161222/RealVisXL_V4.0",
+        "pipeline": "StableDiffusionXLPipeline",
+        "description": "RealVisXL v4 — ultra-photorealistic SDXL, best for portraits+scenes",
+        "size_approx": "~7GB",
+        "required": False,
+    },
+
+    # ── FLUX Models (state of the art) ───────────────────────────────────────
     "flux-schnell": {
         "hf_id": "black-forest-labs/FLUX.1-schnell",
         "pipeline": "FluxPipeline",
-        "description": "FLUX.1 Schnell — fast, excellent quality",
+        "description": "FLUX.1 Schnell — fast, state-of-the-art quality (Apache 2.0)",
         "size_approx": "~12GB",
         "required": False,
     },
-    "sd15-inpainting": {
-        "hf_id": "runwayml/stable-diffusion-inpainting",
-        "pipeline": "StableDiffusionInpaintPipeline",
-        "description": "SD 1.5 Inpainting — for outpainting feature",
-        "size_approx": "~5GB",
+    "flux-dev": {
+        "hf_id": "black-forest-labs/FLUX.1-dev",
+        "pipeline": "FluxPipeline",
+        "description": "FLUX.1 Dev — highest quality, slower than schnell (non-commercial)",
+        "size_approx": "~24GB",
         "required": False,
     },
 }
@@ -76,6 +125,65 @@ UPSCALER = {
     "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
     "path": "upscaler/RealESRGAN_x4plus.pth",
     "size_approx": "~64MB",
+}
+
+# LoRAs — lightweight fine-tunes that modify model output style/subject
+# Place in models/loras/. Load at inference time alongside base model.
+LORAS = {
+    "detail-tweaker-xl": {
+        "hf_id": "stabilityai/stable-diffusion-xl-base-1.0",  # placeholder
+        "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors",
+        "path": "loras/detail-tweaker-xl.safetensors",
+        "description": "Detail Tweaker XL — adds micro-detail and sharpness to SDXL",
+        "base_model": "sdxl",
+        "size_approx": "~800MB",
+        "hf_direct": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0",
+        "note": "Download manually from CivitAI: https://civitai.com/models/122359",
+    },
+    "film-grain-xl": {
+        "url": None,
+        "path": "loras/film-grain-xl.safetensors",
+        "description": "Film Grain XL — cinematic film grain for photorealistic images",
+        "base_model": "sdxl",
+        "size_approx": "~150MB",
+        "note": "Download manually from CivitAI: https://civitai.com/models/202388",
+    },
+    "lightning-xl": {
+        "url": "https://huggingface.co/ByteDance/SDXL-Lightning/resolve/main/sdxl_lightning_4step_lora.safetensors",
+        "path": "loras/sdxl-lightning-4step.safetensors",
+        "description": "SDXL Lightning 4-step LoRA — fast high-quality generation (ByteDance)",
+        "base_model": "sdxl",
+        "size_approx": "~400MB",
+    },
+}
+
+# Embeddings — textual inversion embeddings that add concepts/fix issues
+# Place in models/embeddings/. Reference in prompt as <embedding_name>.
+EMBEDDINGS = {
+    "easy-negative": {
+        "url": "https://huggingface.co/datasets/gsdf/EasyNegative/resolve/main/EasyNegative.safetensors",
+        "path": "embeddings/EasyNegative.safetensors",
+        "description": "EasyNegative — universal negative prompt embedding for SD1.5",
+        "base_model": "sd15",
+        "size_approx": "~25KB",
+        "usage": "Add 'EasyNegative' to negative prompt",
+    },
+    "bad-hands-5": {
+        "url": "https://huggingface.co/yesyeahvh/bad-hands-5/resolve/main/bad-hands-5.pt",
+        "path": "embeddings/bad-hands-5.pt",
+        "description": "bad-hands-5 — fixes hand generation artifacts in SD1.5",
+        "base_model": "sd15",
+        "size_approx": "~25KB",
+        "usage": "Add 'bad-hands-5' to negative prompt",
+    },
+    "negative-xl": {
+        "url": "https://huggingface.co/gsdf/Counterfeit-XL/resolve/main/embedding/negativeXL_D.safetensors",
+        "path": "embeddings/negativeXL_D.safetensors",
+        "description": "NegativeXL — universal negative embedding for SDXL models",
+        "base_model": "sdxl",
+        "size_approx": "~10KB",
+        "usage": "Add 'negativeXL_D' to negative prompt",
+    },
 }
 
 
@@ -188,6 +296,20 @@ def download_upscaler(url, save_path):
     print_ok(f"Saved ({format_size(size)}) in {elapsed:.0f}s")
 
 
+def download_file(url, save_path, label):
+    """Download a single file (LoRA, embedding, etc.) from a URL."""
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+    print_step(f"Downloading {label} from {url}...")
+    t0 = time.time()
+
+    urllib.request.urlretrieve(url, save_path)
+
+    elapsed = time.time() - t0
+    size = os.path.getsize(save_path)
+    print_ok(f"Saved ({format_size(size)}) in {elapsed:.0f}s")
+
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -232,8 +354,12 @@ Minimum (required only): ~5GB
         help="Re-download even if model exists locally",
     )
     parser.add_argument(
+        "--loras", action="store_true",
+        help="Also download LoRA fine-tunes (included automatically with --all)",
+    )
+    parser.add_argument(
         "--list", action="store_true", dest="list_models",
-        help="List available models and exit",
+        help="List available models, LoRAs, and embeddings, then exit",
     )
 
     args = parser.parse_args()
@@ -243,8 +369,15 @@ Minimum (required only): ~5GB
         print_header("Available Models")
         for key, config in MODELS.items():
             req = "[required]" if config["required"] else "[optional]"
-            print(f"  {req:10s}  {key:20s}  {config['size_approx']:>6s}  {config['description']}")
-        print(f"  {'[optional]':10s}  {'upscaler':20s}  {UPSCALER['size_approx']:>6s}  Real-ESRGAN 4x upscaler")
+            print(f"  {req:10s}  {key:25s}  {config['size_approx']:>6s}  {config['description']}")
+        print(f"\n  {'[optional]':10s}  {'upscaler':25s}  {UPSCALER['size_approx']:>6s}  Real-ESRGAN 4x upscaler")
+        print_header("Available LoRAs")
+        for key, config in LORAS.items():
+            note = f" ⚠ {config['note']}" if config.get('note') else ""
+            print(f"  [lora]      {key:25s}  {config['size_approx']:>6s}  {config['description']}{note}")
+        print_header("Available Embeddings")
+        for key, config in EMBEDDINGS.items():
+            print(f"  [embed]     {key:25s}  {config['size_approx']:>6s}  {config['description']}")
         return
 
     models_dir = os.path.abspath(args.models_dir)
@@ -313,6 +446,43 @@ Minimum (required only): ~5GB
             except Exception as e:
                 print_fail(f"Failed: {e}")
                 total_failed += 1
+
+    # Download embeddings (always, they're tiny)
+    print_header("Embeddings (tiny, always downloaded)")
+    for key, config in EMBEDDINGS.items():
+        embed_path = os.path.join(models_dir, config["path"])
+        if os.path.exists(embed_path) and not args.force:
+            print_skip(f"{key} — already exists")
+            total_skipped += 1
+        elif config.get("url"):
+            try:
+                download_file(config["url"], embed_path, key)
+                total_downloaded += 1
+            except Exception as e:
+                print_fail(f"{key}: {e}")
+                total_failed += 1
+        else:
+            print_skip(f"{key} — no URL, manual download required")
+
+    # Download LoRAs (only with --loras flag or --all)
+    if args.all or getattr(args, 'loras', False):
+        print_header("LoRAs")
+        for key, config in LORAS.items():
+            lora_path = os.path.join(models_dir, config["path"])
+            if os.path.exists(lora_path) and not args.force:
+                size = os.path.getsize(lora_path)
+                print_skip(f"{key} — already exists ({format_size(size)})")
+                total_skipped += 1
+            elif config.get("url"):
+                try:
+                    download_file(config["url"], lora_path, key)
+                    total_downloaded += 1
+                except Exception as e:
+                    print_fail(f"{key}: {e}")
+                    total_failed += 1
+            else:
+                note = config.get("note", "no URL available")
+                print_skip(f"{key} — manual download required: {note}")
 
     # Summary
     print_header("Summary")
