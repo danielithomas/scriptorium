@@ -249,7 +249,7 @@ async def lifespan(app: FastAPI):
     # Log GPU info
     if torch.cuda.is_available():
         gpu_name = torch.cuda.get_device_name(0)
-        vram_total = torch.cuda.get_device_properties(0).total_mem / 1024**3
+        vram_total = torch.cuda.get_device_properties(0).total_memory / 1024**3
         logger.info(f"GPU: {gpu_name} ({vram_total:.1f}GB VRAM)")
     else:
         logger.warning("No CUDA GPU detected, running on CPU")
@@ -712,7 +712,7 @@ async def health():
     loaded = list(pipelines.keys())
     gpu_available = torch.cuda.is_available()
     gpu_name = torch.cuda.get_device_name(0) if gpu_available else None
-    vram_total = torch.cuda.get_device_properties(0).total_mem / 1024**3 if gpu_available else 0
+    vram_total = torch.cuda.get_device_properties(0).total_memory / 1024**3 if gpu_available else 0
     vram_used = torch.cuda.memory_allocated() / 1024**3 if gpu_available else 0
     upscaler_ready = os.path.exists("/data/models/upscaler/RealESRGAN_x4plus.pth")
     inpaint_ready = os.path.exists(INPAINT_LOCAL_PATH) or inpaint_pipeline is not None
