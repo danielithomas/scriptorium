@@ -13,8 +13,18 @@ scriptorium/
 ├── windows/    # PowerShell scripts for Windows optimization
 ├── linux/      # Bash scripts for Linux (Ubuntu)
 ├── docker/     # Docker Compose stacks and services
+│   ├── caddy/           # Caddy reverse proxy for LAN services
+│   ├── chatterbox-tts/  # Voice cloning TTS server (CPU / NVIDIA GPU)
+│   ├── comfyui/         # ComfyUI image generation — Intel XPU
+│   ├── dockge/          # Docker Compose stack manager UI
 │   ├── image-gen/       # Image generation API — OpenVINO (Intel CPU/iGPU/Arc)
-│   └── image-gen-cuda/  # Image generation API — PyTorch/CUDA (NVIDIA GPU)
+│   ├── image-gen-cuda/  # Image generation API — PyTorch/CUDA (NVIDIA GPU)
+│   ├── kokoro-tts/      # Lightweight OpenAI-compatible TTS (CPU)
+│   ├── monitoring/      # Uptime Kuma + Glances (service & system monitoring)
+│   ├── n8n/             # Workflow automation platform
+│   ├── ollama/          # Ollama LLM inference server
+│   ├── ollama-ipex/     # Ollama with Intel IPEX-LLM (Arc / iGPU)
+│   └── opencode/        # AI coding assistant container (Ollama-connected)
 ```
 
 ## Script Conventions

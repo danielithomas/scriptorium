@@ -1,0 +1,23 @@
+services:
+  chatterbox-tts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - RUNTIME=${RUNTIME:-cpu}
+    ports:
+      - "${TTS_PORT:-8004}:8004"
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./voices:/app/voices
+      - ./reference_audio:/app/reference_audio
+      - ./outputs:/app/outputs
+      - ./logs:/app/logs
+      - hf_cache:/app/hf_cache
+    restart: unless-stopped
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+      - HF_HUB_ENABLE_HF_TRANSFER=1
+
+volumes:
+  hf_cache:

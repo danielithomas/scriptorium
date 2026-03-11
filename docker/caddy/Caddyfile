@@ -1,0 +1,27 @@
+# Caddy — LAN Reverse Proxy
+#
+# Use this to expose internal Docker services on friendly ports.
+# The `host.docker.internal` hostname resolves to the Docker host,
+# allowing you to proxy to services running outside Docker.
+#
+# For internal/LAN use, Caddy serves HTTP by default on :80.
+# For HTTPS with automatic certificates, use a domain name instead of :port.
+
+:80 {
+    respond "Caddy is running" 200
+}
+
+# Example: Proxy a Docker management UI running on port 5001
+# :8080 {
+#     reverse_proxy dockge:5001
+# }
+
+# Example: Proxy a monitoring dashboard on port 3001
+# :8081 {
+#     reverse_proxy uptime-kuma:3001
+# }
+
+# Example: Proxy a host service (not in Docker) on port 61208
+# :8082 {
+#     reverse_proxy host.docker.internal:61208
+# }
