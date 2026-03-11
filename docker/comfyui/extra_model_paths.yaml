@@ -1,0 +1,14 @@
+# ComfyUI Extra Model Paths
+# Maps ComfyUI model types to shared model directories on the host.
+# The base_path corresponds to the volume mount in compose.yaml.
+
+comfyui:
+    base_path: /data/models
+    checkpoints: checkpoints/
+    embeddings: embeddings/
+    upscale_models: upscaler/
+    loras: loras/
+    # Add more model types as needed:
+    # vae: vae/
+    # controlnet: controlnet/
+    # clip: clip/

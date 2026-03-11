@@ -1,0 +1,22 @@
+services:
+  opencode:
+    build: .
+    container_name: opencode
+    stdin_open: true
+    tty: true
+    volumes:
+      - ${WORKSPACE_PATH:-./workspace}:/home/coder/workspace
+      - opencode-config:/home/coder/.config
+    environment:
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
+    networks:
+      - ollama_net
+    restart: unless-stopped
+
+volumes:
+  opencode-config:
+
+networks:
+  ollama_net:
+    external: true
+    name: ${OLLAMA_NETWORK:-ollama_default}

@@ -20,26 +20,33 @@ A collection of system administration scripts, optimisation tools, and Docker st
 
 ### Docker
 
-Containerised service stacks for AI/ML workloads.
+Containerised service stacks for self-hosted AI, monitoring, and infrastructure.
+
+#### AI / ML
 
 | Stack | Target Hardware | Description | Docs |
 |-------|----------------|-------------|------|
-| [`image-gen`](docker/image-gen/) | Intel CPU / iGPU / Arc | Multi-model image generation API using OpenVINO. Supports SD 1.5, DreamShaper LCM, and SDXL Turbo with Real-ESRGAN upscaling and outpainting. | [README](docker/image-gen/README.md) |
-| [`image-gen-cuda`](docker/image-gen-cuda/) | NVIDIA GPU (CUDA) | Multi-model image generation API using PyTorch + CUDA. Supports SD 1.5, DreamShaper 8, SDXL Turbo, SDXL 1.0, and FLUX.1 Schnell with auto-download from HuggingFace. | [README](docker/image-gen-cuda/README.md) |
+| [`image-gen`](docker/image-gen/) | Intel CPU / iGPU / Arc | Multi-model image generation API (OpenVINO). SD 1.5, DreamShaper LCM, SDXL Turbo, Real-ESRGAN upscaling. | [README](docker/image-gen/README.md) |
+| [`image-gen-cuda`](docker/image-gen-cuda/) | NVIDIA GPU (CUDA) | Multi-model image generation API (PyTorch + CUDA). SD 1.5, DreamShaper 8, SDXL Turbo, SDXL 1.0, FLUX.1 Schnell. | [README](docker/image-gen-cuda/README.md) |
+| [`ollama`](docker/ollama/) | CPU / GPU | Standard Ollama LLM inference server. | [README](docker/ollama/README.md) |
+| [`ollama-ipex`](docker/ollama-ipex/) | Intel Arc / iGPU | Ollama with IPEX-LLM for Intel GPU acceleration. | [README](docker/ollama-ipex/README.md) |
+| [`comfyui`](docker/comfyui/) | Intel XPU | ComfyUI node-based image generation with Intel XPU support. | [README](docker/comfyui/README.md) |
+| [`chatterbox-tts`](docker/chatterbox-tts/) | CPU / NVIDIA GPU | Chatterbox voice cloning TTS server (CPU and CUDA). | [README](docker/chatterbox-tts/README.md) |
+| [`kokoro-tts`](docker/kokoro-tts/) | CPU | Lightweight OpenAI-compatible TTS server. | [README](docker/kokoro-tts/README.md) |
+| [`opencode`](docker/opencode/) | CPU | AI coding assistant container connected to Ollama. | [README](docker/opencode/README.md) |
 
-Both stacks expose the **same REST API** on port `8100`, making them drop-in replacements for each other. Choose based on your hardware:
+#### Infrastructure & Monitoring
 
-- **Intel systems** → `image-gen` (OpenVINO, pre-converted models, works on CPU or Intel GPU)
-- **NVIDIA systems** → `image-gen-cuda` (PyTorch, auto-downloads models, requires NVIDIA Container Toolkit)
+| Stack | Description | Docs |
+|-------|-------------|------|
+| [`caddy`](docker/caddy/) | Caddy reverse proxy for LAN services. | [README](docker/caddy/README.md) |
+| [`dockge`](docker/dockge/) | Docker Compose stack manager with web UI. | [README](docker/dockge/README.md) |
+| [`n8n`](docker/n8n/) | Workflow automation platform. | [README](docker/n8n/README.md) |
+| [`monitoring`](docker/monitoring/) | Uptime Kuma + Glances (service & system monitoring). | [README](docker/monitoring/README.md) |
 
-#### Key files
+#### Image Generation — Quick Comparison
 
-| Stack | Files |
-|-------|-------|
-| `image-gen` | [`compose.yaml`](docker/image-gen/compose.yaml) · [`Dockerfile`](docker/image-gen/Dockerfile) · [`server.py`](docker/image-gen/server.py) |
-| `image-gen-cuda` | [`compose.yaml`](docker/image-gen-cuda/compose.yaml) · [`Dockerfile`](docker/image-gen-cuda/Dockerfile) · [`server.py`](docker/image-gen-cuda/server.py) · [`download-models.py`](docker/image-gen-cuda/download-models.py) |
-
-#### Quick comparison
+`image-gen` and `image-gen-cuda` expose the **same REST API** on port `8100`, making them drop-in replacements. Choose based on hardware:
 
 | | `image-gen` (OpenVINO) | `image-gen-cuda` (CUDA) |
 |---|---|---|

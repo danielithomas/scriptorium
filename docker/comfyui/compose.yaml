@@ -1,0 +1,25 @@
+services:
+  comfyui:
+    image: ghcr.io/reliq-hq/comfyui:xpu-master
+    container_name: comfyui
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    volumes:
+      - ${MODELS_PATH:-./models}:/data/models:ro
+      - ./extra_model_paths.yaml:/app/extra_model_paths.yaml:ro
+      - comfyui_custom_nodes:/app/custom_nodes
+      - comfyui_output:/app/output
+      - comfyui_user:/app/user
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "${RENDER_GID:-992}"
+      - "${VIDEO_GID:-44}"
+    environment:
+      - PYTORCH_ENABLE_XPU_FALLBACK=1
+    restart: unless-stopped
+
+volumes:
+  comfyui_custom_nodes:
+  comfyui_output:
+  comfyui_user:
