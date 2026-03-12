@@ -31,6 +31,7 @@ Containerised service stacks for self-hosted AI, monitoring, and infrastructure.
 | [`ollama`](docker/ollama/) | CPU / GPU | Standard Ollama LLM inference server. | [README](docker/ollama/README.md) |
 | [`ollama-ipex`](docker/ollama-ipex/) | Intel Arc / iGPU | Ollama with IPEX-LLM for Intel GPU acceleration. | [README](docker/ollama-ipex/README.md) |
 | [`comfyui`](docker/comfyui/) | Intel XPU | ComfyUI node-based image generation with Intel XPU support. | [README](docker/comfyui/README.md) |
+| [`comfyui-cuda`](docker/comfyui-cuda/) | NVIDIA GPU (CUDA) | ComfyUI with FLUX.1-dev (fp8). Includes workflows and Skippy orchestrator pattern. | [README](docker/comfyui-cuda/README.md) |
 | [`chatterbox-tts`](docker/chatterbox-tts/) | CPU / NVIDIA GPU | Chatterbox voice cloning TTS server (CPU and CUDA). | [README](docker/chatterbox-tts/README.md) |
 | [`kokoro-tts`](docker/kokoro-tts/) | CPU | Lightweight OpenAI-compatible TTS server. | [README](docker/kokoro-tts/README.md) |
 | [`opencode`](docker/opencode/) | CPU | AI coding assistant container connected to Ollama. | [README](docker/opencode/README.md) |
