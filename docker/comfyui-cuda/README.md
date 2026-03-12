@@ -55,27 +55,47 @@ RTX 5080/5090/5070 GPUs use CUDA compute capability **sm_120** (Blackwell). The 
 #    https://huggingface.co/black-forest-labs/FLUX.1-dev
 #    Then: huggingface-cli login
 
-# 2. Download FLUX.1-dev model files (~18GB total)
+# 2. Install the HuggingFace CLI
 pip install huggingface-hub[cli]
-chmod +x download-flux1-dev.sh
-./download-flux1-dev.sh /path/to/models
 
-# 3. Configure environment
+# 3. Download FLUX.1-dev model files (~18GB total)
+python download-models.py /path/to/models          # FLUX components only
+python download-models.py /path/to/models --all     # + embeddings, LoRAs, upscaler
+python download-models.py --list                     # see all available downloads
+
+# 4. Configure environment
 cp .env.example .env
 # Edit .env:
 #   MODELS_PATH=/path/to/models
 #   OUTPUT_PATH=/path/to/shared/output
 
-# 4. Build and run
+# 5. Build and run
 docker compose up -d --build
 
-# 5. Open the UI
+# 6. Open the UI
 #    http://localhost:8188
 ```
 
+### Shared Model Directory
+
+If you point `MODELS_PATH` at an existing model directory (e.g., one shared with `image-gen-cuda`), ComfyUI will automatically see all LoRAs, embeddings, upscaler weights, and any `.safetensors` checkpoints in the appropriate subdirectories. The `extra_model_paths.yaml` maps the standard structure:
+
+```
+models/
+├── checkpoints/    ← SD/SDXL .safetensors files (ComfyUI native format)
+├── unet/           ← FLUX UNet weights
+├── clip/           ← Text encoders (CLIP-L, T5-XXL)
+├── vae/            ← VAE / autoencoder
+├── loras/          ← LoRA fine-tunes (shared with image-gen-cuda)
+├── embeddings/     ← Textual inversions (shared with image-gen-cuda)
+└── upscaler/       ← Real-ESRGAN weights (shared with image-gen-cuda)
+```
+
+**Note:** `image-gen-cuda` downloads models in HuggingFace diffusers format (directories like `sdxl-base/`). ComfyUI expects single `.safetensors` checkpoint files in `checkpoints/`. The diffusers-format models won't appear in ComfyUI, but all shared auxiliary files (LoRAs, embeddings, upscaler) work across both.
+
 ## Model Files
 
-The `download-flux1-dev.sh` script fetches everything needed:
+The `download-models.py` script fetches everything needed:
 
 | File | Location | Size | Description |
 |------|----------|------|-------------|
