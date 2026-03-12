@@ -1,0 +1,31 @@
+services:
+  comfyui:
+    build:
+      context: .
+      args:
+        COMFYUI_VERSION: ${COMFYUI_VERSION:-master}
+    container_name: comfyui-cuda
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    volumes:
+      - ${MODELS_PATH:-./models}:/data/models
+      - ${OUTPUT_PATH:-./output}:/app/output
+      - ./extra_model_paths.yaml:/app/extra_model_paths.yaml:ro
+      - comfyui_custom_nodes:/app/custom_nodes
+      - comfyui_user:/app/user
+      - comfyui_input:/app/input
+    environment:
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  comfyui_custom_nodes:
+  comfyui_user:
+  comfyui_input:

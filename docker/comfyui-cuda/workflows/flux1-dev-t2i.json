@@ -1,0 +1,241 @@
+{
+  "last_node_id": 13,
+  "last_link_id": 12,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "pos": [100, 200],
+      "size": [315, 82],
+      "properties": {},
+      "widgets_values": [
+        "flux1-dev-fp8.safetensors",
+        "fp8_e4m3fn"
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [1],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "DualCLIPLoader",
+      "pos": [100, 350],
+      "size": [315, 106],
+      "properties": {},
+      "widgets_values": [
+        "clip_l.safetensors",
+        "t5xxl_fp8_e4m3fn.safetensors",
+        "flux"
+      ],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [2],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "VAELoader",
+      "pos": [100, 520],
+      "size": [315, 58],
+      "properties": {},
+      "widgets_values": [
+        "ae.safetensors"
+      ],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [3],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "pos": [500, 200],
+      "size": [400, 200],
+      "properties": {},
+      "widgets_values": [
+        "a majestic raven perched on a gothic cathedral spire at golden hour, photorealistic, detailed feathers, dramatic lighting"
+      ],
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [4],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "EmptySD3LatentImage",
+      "pos": [500, 470],
+      "size": [315, 106],
+      "properties": {},
+      "widgets_values": [
+        1024,
+        1024,
+        1
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [5],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "KSampler",
+      "pos": [950, 200],
+      "size": [315, 262],
+      "properties": {},
+      "widgets_values": [
+        0,
+        "randomize",
+        20,
+        3.5,
+        "euler",
+        "simple",
+        1.0
+      ],
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 4
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [7],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [500, 430],
+      "size": [400, 50],
+      "properties": {},
+      "widgets_values": [
+        ""
+      ],
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [6],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [1350, 200],
+      "size": [210, 46],
+      "properties": {},
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 7
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [8],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "pos": [1600, 200],
+      "size": [315, 270],
+      "properties": {},
+      "widgets_values": [
+        "flux1dev"
+      ],
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 8
+        }
+      ]
+    }
+  ],
+  "links": [
+    [1, 1, 0, 6, 0, "MODEL"],
+    [2, 2, 0, 4, 0, "CLIP"],
+    [3, 3, 0, 8, 1, "VAE"],
+    [4, 4, 0, 6, 1, "CONDITIONING"],
+    [5, 5, 0, 6, 3, "LATENT"],
+    [6, 7, 0, 6, 2, "CONDITIONING"],
+    [7, 6, 0, 8, 0, "LATENT"],
+    [8, 8, 0, 9, 0, "IMAGE"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8
+    }
+  },
+  "version": 0.4
+}
