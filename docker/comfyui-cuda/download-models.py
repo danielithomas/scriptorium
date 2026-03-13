@@ -125,14 +125,30 @@ LORAS = {
     },
 }
 
-# ─── Upscaler ─────────────────────────────────────────────────────────────────
+# ─── Upscalers ────────────────────────────────────────────────────────────────
 
-UPSCALER = {
-    "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
-    "filename": "RealESRGAN_x4plus.pth",
-    "subdir": "upscaler",
-    "description": "Real-ESRGAN 4x upscaler",
-    "size_approx": "~64MB",
+UPSCALERS = {
+    "realesrgan-x4plus": {
+        "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
+        "filename": "RealESRGAN_x4plus.pth",
+        "subdir": "upscaler",
+        "description": "Real-ESRGAN 4x upscaler (solid baseline)",
+        "size_approx": "~64MB",
+    },
+    "4x-ultrasharp": {
+        "url": "https://huggingface.co/lokCX/4x-Ultrasharp/resolve/main/4x-UltraSharp.pth",
+        "filename": "4x-UltraSharp.pth",
+        "subdir": "upscaler",
+        "description": "4x UltraSharp — rich detail + texture, community favourite",
+        "size_approx": "~67MB",
+    },
+    "4x-nomos8k-schat-l": {
+        "url": "https://huggingface.co/Phhofm/4xNomos8kSCHAT-L/resolve/main/4xNomos8kSCHAT-L.pth",
+        "filename": "4xNomos8kSCHAT-L.pth",
+        "subdir": "upscaler",
+        "description": "4x Nomos8kSCHAT-L (HAT) — photorealistic, extreme sharpness",
+        "size_approx": "~316MB",
+    },
 }
 
 
@@ -246,7 +262,7 @@ FLUX.1-dev components (default):
 
 Total FLUX.1-dev: ~18GB
 
-With --all: also downloads embeddings, LoRAs, and upscaler.
+With --all: also downloads embeddings, LoRAs, and upscalers.
 
 Model directory structure:
   models/
@@ -256,7 +272,7 @@ Model directory structure:
   ├── checkpoints/    Full model checkpoints (SD, SDXL .safetensors)
   ├── loras/          LoRA fine-tunes
   ├── embeddings/     Textual inversions
-  └── upscaler/       Real-ESRGAN weights
+  └── upscaler/       Upscale models (RealESRGAN, UltraSharp, Nomos8k)
 
 This structure is shared with image-gen-cuda. If you point both stacks
 at the same MODELS_PATH, LoRAs, embeddings, and upscaler files are
@@ -271,7 +287,7 @@ shared automatically.
     )
     parser.add_argument(
         "--all", action="store_true",
-        help="Download everything: FLUX components + embeddings + LoRAs + upscaler",
+        help="Download everything: FLUX components + embeddings + LoRAs + upscalers",
     )
     parser.add_argument(
         "--flux", action="store_true", default=True,
@@ -279,7 +295,7 @@ shared automatically.
     )
     parser.add_argument(
         "--extras", action="store_true",
-        help="Download embeddings, LoRAs, and upscaler (included with --all)",
+        help="Download embeddings, LoRAs, and upscalers (included with --all)",
     )
     parser.add_argument(
         "--force", action="store_true",
@@ -308,9 +324,9 @@ shared automatically.
             note = f" ⚠ {c['note']}" if c.get("note") else ""
             print(f"  {c['subdir'] + '/' + c['filename']:45s}  {c['size_approx']:>6s}  {c['description']}{note}")
 
-        print_header("Upscaler (--extras or --all)")
-        u = UPSCALER
-        print(f"  {u['subdir'] + '/' + u['filename']:45s}  {u['size_approx']:>6s}  {u['description']}")
+        print_header("Upscalers (--extras or --all)")
+        for key, c in UPSCALERS.items():
+            print(f"  {c['subdir'] + '/' + c['filename']:45s}  {c['size_approx']:>6s}  {c['description']}")
         return
 
     # ── Setup ─────────────────────────────────────────────────────────────────
@@ -382,16 +398,17 @@ shared automatically.
                 note = lora.get("note", "No URL — manual download required")
                 print_skip(f"{key} — {note}")
 
-        # Upscaler
-        print_header("Upscaler")
-        up_path = os.path.join(models_dir, UPSCALER["subdir"], UPSCALER["filename"])
-        try:
-            result = download_url(UPSCALER["url"], up_path, "Real-ESRGAN 4x", force=args.force)
-            downloaded += 1 if result else 0
-            skipped += 0 if result else 1
-        except Exception as e:
-            print_fail(f"Upscaler: {e}")
-            failed += 1
+        # Upscalers
+        print_header("Upscalers")
+        for key, upsc in UPSCALERS.items():
+            save_path = os.path.join(models_dir, upsc["subdir"], upsc["filename"])
+            try:
+                result = download_url(upsc["url"], save_path, key, force=args.force)
+                downloaded += 1 if result else 0
+                skipped += 0 if result else 1
+            except Exception as e:
+                print_fail(f"{key}: {e}")
+                failed += 1
 
     # ── Summary ───────────────────────────────────────────────────────────────
     print_header("Summary")
@@ -410,7 +427,7 @@ shared automatically.
         print(f"    4. Load workflows/flux1-dev-t2i.json")
 
     if not args.all and not args.extras:
-        print(f"\n  Tip: Run with --all to also download embeddings, LoRAs, and upscaler.")
+        print(f"\n  Tip: Run with --all to also download embeddings, LoRAs, and upscalers.")
 
     if failed > 0:
         sys.exit(1)
