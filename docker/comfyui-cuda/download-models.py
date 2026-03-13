@@ -144,8 +144,8 @@ UPSCALERS = {
         "size_approx": "~67MB",
     },
     "4x-nomos8k-schat-l": {
-        "url": "https://huggingface.co/Phhofm/4xNomos8kSCHAT-L/resolve/main/4xNomos8kSCHAT-L.pth",
-        "filename": "4xNomos8kSCHAT-L.pth",
+        "url": "https://huggingface.co/Phhofm/4xNomos8kSCHAT-L/resolve/main/4xNomos8kSCHAT-L.safetensors",
+        "filename": "4xNomos8kSCHAT-L.safetensors",
         "subdir": "upscaler",
         "description": "4x Nomos8kSCHAT-L (HAT) — photorealistic, extreme sharpness",
         "size_approx": "~316MB",
