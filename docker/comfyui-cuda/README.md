@@ -88,7 +88,7 @@ models/
 ├── vae/            ← VAE / autoencoder
 ├── loras/          ← LoRA fine-tunes (shared with image-gen-cuda)
 ├── embeddings/     ← Textual inversions (shared with image-gen-cuda)
-└── upscaler/       ← Real-ESRGAN weights (shared with image-gen-cuda)
+└── upscaler/       ← Upscale models: UltraSharp, Nomos8k, RealESRGAN (shared with image-gen-cuda)
 ```
 
 **Note:** `image-gen-cuda` downloads models in HuggingFace diffusers format (directories like `sdxl-base/`). ComfyUI expects single `.safetensors` checkpoint files in `checkpoints/`. The diffusers-format models won't appear in ComfyUI, but all shared auxiliary files (LoRAs, embeddings, upscaler) work across both.
@@ -118,7 +118,10 @@ Pre-built workflow files in `workflows/`:
 |----------|-----------|-------|----------|
 | `flux1-dev-t2i.json` | 1024×1024 | 20 | Standard text-to-image |
 | `flux1-dev-t2i-ultrawide.json` | 1344×576 | 25 | Ultrawide wallpaper (21:9) |
+| `flux1-dev-t2i-ultrawide-upscaled.json` | 1344×576 → 4x | 25 | Ultrawide + 4x upscale (wallpaper-ready) |
 | `flux1-dev-api-template.json` | Configurable | 20 | API automation template |
+
+The upscaled workflow generates at 1344×576 then upscales 4x via **4x-UltraSharp** to **5376×2304**. Swap the upscale model in the `UpscaleModelLoader` node to use `4xNomos8kSCHAT-L.pth` (photorealistic, extreme sharpness) or `RealESRGAN_x4plus.pth` (baseline). All three are downloaded with `--all`.
 
 ### Loading a Workflow
 
