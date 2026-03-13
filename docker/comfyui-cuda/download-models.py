@@ -88,12 +88,13 @@ EMBEDDINGS = {
         "usage": "Add 'bad-hands-5' to negative prompt",
     },
     "negative-xl": {
-        "url": "https://huggingface.co/gsdf/Counterfeit-XL/resolve/main/embedding/negativeXL_D.safetensors",
+        "url": None,
         "filename": "negativeXL_D.safetensors",
         "subdir": "embeddings",
         "description": "Universal negative embedding (SDXL)",
         "size_approx": "~10KB",
         "usage": "Add 'negativeXL_D' to negative prompt",
+        "note": "Manual download from CivitAI: https://civitai.com/models/118418",
     },
 }
 
@@ -317,7 +318,8 @@ shared automatically.
 
         print_header("Embeddings (--extras or --all)")
         for key, c in EMBEDDINGS.items():
-            print(f"  {c['subdir'] + '/' + c['filename']:45s}  {c['size_approx']:>6s}  {c['description']}")
+            note = f" ⚠ {c['note']}" if c.get("note") else ""
+            print(f"  {c['subdir'] + '/' + c['filename']:45s}  {c['size_approx']:>6s}  {c['description']}{note}")
 
         print_header("LoRAs (--extras or --all)")
         for key, c in LORAS.items():
@@ -374,13 +376,17 @@ shared automatically.
         print_header("Embeddings")
         for key, emb in EMBEDDINGS.items():
             save_path = os.path.join(models_dir, emb["subdir"], emb["filename"])
-            try:
-                result = download_url(emb["url"], save_path, key, force=args.force)
-                downloaded += 1 if result else 0
-                skipped += 0 if result else 1
-            except Exception as e:
-                print_fail(f"{key}: {e}")
-                failed += 1
+            if emb.get("url"):
+                try:
+                    result = download_url(emb["url"], save_path, key, force=args.force)
+                    downloaded += 1 if result else 0
+                    skipped += 0 if result else 1
+                except Exception as e:
+                    print_fail(f"{key}: {e}")
+                    failed += 1
+            else:
+                note = emb.get("note", "No URL — manual download required")
+                print_skip(f"{key} — {note}")
 
         # LoRAs
         print_header("LoRAs")
