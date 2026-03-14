@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Download FLUX.1-dev model components for ComfyUI
 #
+# NOTE: Prefer download-models.py for full multi-model support:
+#   python download-models.py /path/to/models --all
+#
+# This script downloads FLUX.1-dev components only.
+#
 # FLUX.1-dev is a gated model — you MUST:
 #   1. Accept the license at https://huggingface.co/black-forest-labs/FLUX.1-dev
 #   2. Log in: huggingface-cli login

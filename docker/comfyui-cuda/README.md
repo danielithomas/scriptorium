@@ -1,6 +1,6 @@
-# ComfyUI — NVIDIA CUDA (FLUX.1-dev)
+# ComfyUI — NVIDIA CUDA (Multi-Model)
 
-[ComfyUI](https://github.com/comfyanonymous/ComfyUI) node-based image generation with NVIDIA CUDA acceleration. Configured for **FLUX.1-dev** (12B parameters, fp8 quantized) on RTX 5080 / 16GB VRAM.
+[ComfyUI](https://github.com/comfyanonymous/ComfyUI) node-based image generation with NVIDIA CUDA acceleration. Supports **FLUX.1-dev**, **FLUX.2-klein-9B**, **SDXL**, and **FLUX.1-Kontext-dev** on RTX 5080 / 16GB VRAM.
 
 ## Architecture
 
@@ -25,7 +25,7 @@
 
 1. **Request** — Orchestrator (or any client) POSTs a workflow JSON to ComfyUI's API (`http://server-name:8188/prompt`)
 2. **Queue** — ComfyUI queues the job internally; handles concurrency natively
-3. **Generate** — GPU processes the workflow; FLUX.1-dev fp8 runs in ~15–30s per image at 1024×1024
+3. **Generate** — GPU processes the workflow
 4. **Save** — Output lands in the shared output directory
 5. **Poll & Deliver** — Orchestrator polls the output directory every 30–60s; picks up new images and delivers them
 
@@ -41,8 +41,8 @@
 - NVIDIA GPU with CUDA support (RTX 5080 tested, sm_120 / Blackwell)
 - [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
 - Docker with GPU support
-- ~18GB disk for FLUX.1-dev model files
-- Hugging Face account (FLUX.1-dev requires license acceptance)
+- Hugging Face account (gated models require license acceptance)
+- `pip install huggingface-hub[cli]`
 
 ### Blackwell / RTX 50-Series Note
 
@@ -51,17 +51,20 @@ RTX 5080/5090/5070 GPUs use CUDA compute capability **sm_120** (Blackwell). The 
 ## Quick Start
 
 ```bash
-# 1. Accept the FLUX.1-dev license
-#    https://huggingface.co/black-forest-labs/FLUX.1-dev
-#    Then: huggingface-cli login
-
-# 2. Install the HuggingFace CLI
+# 1. Install the HuggingFace CLI and log in
 pip install huggingface-hub[cli]
+huggingface-cli login
 
-# 3. Download FLUX.1-dev model files (~18GB total)
-python download-models.py /path/to/models          # FLUX components only
-python download-models.py /path/to/models --all     # + embeddings, LoRAs, upscaler
-python download-models.py --list                     # see all available downloads
+# 2. Accept gated model licenses on HuggingFace:
+#    - https://huggingface.co/black-forest-labs/FLUX.1-dev
+#    - https://huggingface.co/black-forest-labs/FLUX.2-klein-9B (if using --flux2)
+
+# 3. Download models
+python download-models.py /path/to/models              # FLUX.1-dev only (~18GB)
+python download-models.py /path/to/models --checkpoints # + SDXL base (~6.9GB)
+python download-models.py /path/to/models --flux2       # + FLUX.2-klein-9B (~17GB)
+python download-models.py /path/to/models --all         # everything (~65GB+)
+python download-models.py --list                        # see all available downloads
 
 # 4. Configure environment
 cp .env.example .env
@@ -76,19 +79,30 @@ docker compose up -d --build
 #    http://localhost:8188
 ```
 
+## Supported Models
+
+| Model | Type | Size | Loader | Use Case |
+|-------|------|------|--------|----------|
+| FLUX.1-dev (fp8) | UNet + CLIP + VAE | ~18GB | `UNETLoader` | High quality text-to-image, 12B params |
+| FLUX.2-klein-9B | UNet | ~17GB | `UNETLoader` | Faster FLUX, 9B params |
+| FLUX.1-Kontext-dev | UNet | ~22GB | `UNETLoader` | Context-aware image editing |
+| SDXL Base 1.0 | Checkpoint | ~6.9GB | `CheckpointLoaderSimple` | Mature ecosystem, LoRA support |
+
+All FLUX models share the same CLIP-L, T5-XXL, and VAE components. SDXL is a self-contained checkpoint.
+
 ### Shared Model Directory
 
-If you point `MODELS_PATH` at an existing model directory (e.g., one shared with `image-gen-cuda`), ComfyUI will automatically see all LoRAs, embeddings, upscaler weights, and any `.safetensors` checkpoints in the appropriate subdirectories. The `extra_model_paths.yaml` maps the standard structure:
+If you point `MODELS_PATH` at an existing model directory (e.g., one shared with `image-gen-cuda`), ComfyUI will automatically see all auxiliary files. The `extra_model_paths.yaml` maps the standard structure:
 
 ```
 models/
-├── checkpoints/    ← SD/SDXL .safetensors files (ComfyUI native format)
-├── unet/           ← FLUX UNet weights
-├── clip/           ← Text encoders (CLIP-L, T5-XXL)
-├── vae/            ← VAE / autoencoder
+├── checkpoints/    ← SD/SDXL .safetensors files (CheckpointLoaderSimple)
+├── unet/           ← FLUX UNet / diffusion weights (UNETLoader)
+├── clip/           ← Text encoders: CLIP-L, T5-XXL (DualCLIPLoader)
+├── vae/            ← VAE / autoencoder (VAELoader)
 ├── loras/          ← LoRA fine-tunes (shared with image-gen-cuda)
 ├── embeddings/     ← Textual inversions (shared with image-gen-cuda)
-└── upscaler/       ← Upscale models: UltraSharp, Nomos8k, RealESRGAN (shared with image-gen-cuda)
+└── upscaler/       ← Upscale models: UltraSharp, Nomos8k, RealESRGAN
 ```
 
 **Note:** `image-gen-cuda` downloads models in HuggingFace diffusers format (directories like `sdxl-base/`). ComfyUI expects single `.safetensors` checkpoint files in `checkpoints/`. The diffusers-format models won't appear in ComfyUI, but all shared auxiliary files (LoRAs, embeddings, upscaler) work across both.
@@ -97,6 +111,8 @@ models/
 
 The `download-models.py` script fetches everything needed:
 
+### FLUX.1-dev (default)
+
 | File | Location | Size | Description |
 |------|----------|------|-------------|
 | `flux1-dev-fp8.safetensors` | `unet/` | ~12GB | FLUX.1-dev diffusion model (fp8 quantized) |
@@ -104,24 +120,62 @@ The `download-models.py` script fetches everything needed:
 | `t5xxl_fp8_e4m3fn.safetensors` | `clip/` | ~5GB | T5-XXL text encoder (fp8 quantized) |
 | `ae.safetensors` | `vae/` | ~335MB | FLUX autoencoder / VAE |
 
-**Total: ~18GB**
+### FLUX.2-klein-9B (`--flux2`)
 
-### Why fp8?
+| File | Location | Size | Description |
+|------|----------|------|-------------|
+| `flux-2-klein-9b.safetensors` | `unet/` | ~17GB | FLUX.2-klein diffusion model |
 
-Full FLUX.1-dev in bf16 requires ~24GB VRAM (UNet alone). The fp8 quantized version fits comfortably in 16GB with room for the VAE and text encoders, with minimal quality loss. This is the standard approach for RTX 4090/5080 class cards.
+Uses the same `clip/` and `vae/` components as FLUX.1-dev.
+
+### SDXL Base 1.0 (`--checkpoints`)
+
+| File | Location | Size | Description |
+|------|----------|------|-------------|
+| `sd_xl_base_1.0.safetensors` | `checkpoints/` | ~6.9GB | Complete SDXL checkpoint |
+
+Self-contained — includes UNet, text encoders, and VAE in a single file.
+
+### Extras (`--extras`)
+
+| File | Location | Size | Description |
+|------|----------|------|-------------|
+| `EasyNegative.safetensors` | `embeddings/` | ~25KB | Universal negative embedding (SD 1.5) |
+| `bad-hands-5.pt` | `embeddings/` | ~25KB | Hand artifact fix (SD 1.5) |
+| `negativeXL_D.safetensors` | `embeddings/` | ~10KB | Universal negative (SDXL) — manual download |
+| `sdxl-lightning-4step.safetensors` | `loras/` | ~400MB | SDXL Lightning 4-step LoRA |
+| `add-detail-xl.safetensors` | `loras/` | ~220MB | Add Detail XL — manual download |
+| `detail-tweaker-xl.safetensors` | `loras/` | ~800MB | Detail Tweaker XL — manual download |
+| `RealESRGAN_x4plus.pth` | `upscaler/` | ~64MB | Real-ESRGAN 4x baseline |
+| `4x-UltraSharp.pth` | `upscaler/` | ~67MB | 4x UltraSharp — community favourite |
+| `4xNomos8kSCHAT-L.safetensors` | `upscaler/` | ~316MB | Nomos8k HAT — extreme sharpness |
 
 ## Workflows
 
 Pre-built workflow files in `workflows/`:
 
+### FLUX.1-dev
+
 | Workflow | Resolution | Steps | Use Case |
 |----------|-----------|-------|----------|
 | `flux1-dev-t2i.json` | 1024×1024 | 20 | Standard text-to-image |
 | `flux1-dev-t2i-ultrawide.json` | 1344×576 | 25 | Ultrawide wallpaper (21:9) |
-| `flux1-dev-t2i-ultrawide-upscaled.json` | 1344×576 → 4x | 25 | Ultrawide + 4x upscale (wallpaper-ready) |
+| `flux1-dev-t2i-ultrawide-upscaled.json` | 1344×576 → 4x | 25 | Ultrawide + 4x upscale |
 | `flux1-dev-api-template.json` | Configurable | 20 | API automation template |
 
-The upscaled workflow generates at 1344×576 then upscales 4x via **4x-UltraSharp** to **5376×2304**. Swap the upscale model in the `UpscaleModelLoader` node to use `4xNomos8kSCHAT-L.pth` (photorealistic, extreme sharpness) or `RealESRGAN_x4plus.pth` (baseline). All three are downloaded with `--all`.
+### FLUX.2-klein-9B
+
+| Workflow | Resolution | Steps | Use Case |
+|----------|-----------|-------|----------|
+| `flux2-klein-t2i-api-template.json` | Configurable | 20 | API automation template |
+| `flux2-klein-t2i-ultrawide-upscaled.json` | 1344×576 → 4x | 20 | Ultrawide + 4x upscale |
+
+### SDXL
+
+| Workflow | Resolution | Steps | Use Case |
+|----------|-----------|-------|----------|
+| `sdxl-t2i-api-template.json` | Configurable | 30 | API automation template |
+| `sdxl-t2i-ultrawide-upscaled.json` | 1344×576 → 4x | 30 | Ultrawide + 4x upscale |
 
 ### Loading a Workflow
 
@@ -130,20 +184,15 @@ The upscaled workflow generates at 1344×576 then upscales 4x via **4x-UltraShar
 **Via API:** Use the api-template format:
 
 ```bash
+# FLUX.1-dev example
 curl -s http://server-name:8188/prompt \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": {
-      "1": {
-        "class_type": "UNETLoader",
-        "inputs": {"unet_name": "flux1-dev-fp8.safetensors", "weight_dtype": "fp8_e4m3fn"}
-      },
-      "2": {
-        "class_type": "DualCLIPLoader",
-        "inputs": {"clip_name1": "clip_l.safetensors", "clip_name2": "t5xxl_fp8_e4m3fn.safetensors", "type": "flux"}
-      },
+      "1": {"class_type": "UNETLoader", "inputs": {"unet_name": "flux1-dev-fp8.safetensors", "weight_dtype": "fp8_e4m3fn"}},
+      "2": {"class_type": "DualCLIPLoader", "inputs": {"clip_name1": "clip_l.safetensors", "clip_name2": "t5xxl_fp8_e4m3fn.safetensors", "type": "flux"}},
       "3": {"class_type": "VAELoader", "inputs": {"vae_name": "ae.safetensors"}},
-      "4": {"class_type": "CLIPTextEncode", "inputs": {"text": "YOUR PROMPT HERE", "clip": ["2", 0]}},
+      "4": {"class_type": "CLIPTextEncode", "inputs": {"text": "a cyberpunk raven in neon rain", "clip": ["2", 0]}},
       "5": {"class_type": "EmptySD3LatentImage", "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
       "6": {"class_type": "KSampler", "inputs": {"model": ["1", 0], "positive": ["4", 0], "negative": ["7", 0], "latent_image": ["5", 0], "seed": 0, "control_after_generate": "randomize", "steps": 20, "cfg": 3.5, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
       "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["2", 0]}},
@@ -151,69 +200,26 @@ curl -s http://server-name:8188/prompt \
       "9": {"class_type": "SaveImage", "inputs": {"images": ["8", 0], "filename_prefix": "flux1dev"}}
     }
   }'
+
+# SDXL example
+curl -s http://server-name:8188/prompt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": {
+      "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"}},
+      "2": {"class_type": "CLIPTextEncode", "inputs": {"text": "a cyberpunk raven in neon rain, highly detailed", "clip": ["1", 1]}},
+      "3": {"class_type": "CLIPTextEncode", "inputs": {"text": "low quality, blurry, text, watermark", "clip": ["1", 1]}},
+      "4": {"class_type": "EmptyLatentImage", "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
+      "5": {"class_type": "KSampler", "inputs": {"model": ["1", 0], "positive": ["2", 0], "negative": ["3", 0], "latent_image": ["4", 0], "seed": 0, "control_after_generate": "randomize", "steps": 30, "cfg": 7.5, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1.0}},
+      "6": {"class_type": "VAEDecode", "inputs": {"samples": ["5", 0], "vae": ["1", 2]}},
+      "7": {"class_type": "SaveImage", "inputs": {"images": ["6", 0], "filename_prefix": "sdxl"}}
+    }
+  }'
 ```
 
-The API returns a `prompt_id` immediately. The image generates asynchronously and appears in the output directory.
+## Recommended Settings
 
-## Orchestrator Pattern
-
-A separate orchestrator agent submits jobs and polls for results, decoupling generation from delivery.
-
-### Submitting a Job
-
-```python
-import requests, json
-
-COMFYUI_URL = "http://server-name:8188"
-
-# Load the API template
-with open("workflows/flux1-dev-api-template.json") as f:
-    workflow = json.load(f)
-
-# Remove the _comment key
-workflow.pop("_comment", None)
-
-# Customise the prompt
-workflow["4"]["inputs"]["text"] = "a cyberpunk raven in neon rain"
-workflow["5"]["inputs"]["width"] = 1024
-workflow["5"]["inputs"]["height"] = 1024
-workflow["6"]["inputs"]["steps"] = 20
-workflow["6"]["inputs"]["seed"] = 42  # or 0 for random
-workflow["9"]["inputs"]["filename_prefix"] = "my-job"
-
-# Submit
-response = requests.post(f"{COMFYUI_URL}/prompt", json={"prompt": workflow})
-prompt_id = response.json()["prompt_id"]
-print(f"Queued: {prompt_id}")
-```
-
-### Polling for Output
-
-```python
-import os, time
-
-OUTPUT_DIR = "/mnt/shared-output/comfyui-output"  # SMB mount or local path
-POLL_INTERVAL = 30  # seconds
-
-seen = set(os.listdir(OUTPUT_DIR))
-
-while True:
-    time.sleep(POLL_INTERVAL)
-    current = set(os.listdir(OUTPUT_DIR))
-    new_files = current - seen
-    if new_files:
-        for f in sorted(new_files):
-            filepath = os.path.join(OUTPUT_DIR, f)
-            print(f"New image: {filepath}")
-            # → deliver via messaging, copy to another share, etc.
-        seen = current
-```
-
-### Alternative: WebSocket Status
-
-ComfyUI also supports WebSocket connections for real-time status updates. Connect to `ws://server-name:8188/ws` with the `client_id` from the prompt response for progress callbacks. This is more efficient than polling but requires maintaining a persistent connection.
-
-## FLUX.1-dev Recommended Settings
+### FLUX.1-dev / FLUX.2-klein
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
@@ -222,8 +228,18 @@ ComfyUI also supports WebSocket connections for real-time status updates. Connec
 | Sampler | `euler` | Best results with FLUX |
 | Scheduler | `simple` | Standard for FLUX |
 | Resolution | 1024×1024 | Native; also supports 1344×576 (21:9), 768×1344 (portrait) |
+| Negative prompt | (empty) | FLUX does not use negative prompts |
 
-**Note:** FLUX does not use a negative prompt in the traditional sense. The empty CLIPTextEncode node for `negative` is a ComfyUI requirement — leave it blank.
+### SDXL Base 1.0
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Steps | 25–40 | 30 is a good default |
+| CFG | 6.0–8.0 | 7.5 is standard |
+| Sampler | `dpmpp_2m` | Also good: `dpmpp_2m_sde`, `euler_ancestral` |
+| Scheduler | `karras` | Best with DPM++ samplers |
+| Resolution | 1024×1024 | Native; 1344×576 for ultrawide |
+| Negative prompt | ✅ Use it | SDXL benefits strongly from negative prompts |
 
 ## Environment Variables
 
@@ -247,14 +263,29 @@ ComfyUI also supports WebSocket connections for real-time status updates. Connec
 
 ## Performance Estimates (RTX 5080, 16GB)
 
+### FLUX.1-dev (fp8)
+
 | Resolution | Steps | Expected Time | VRAM Usage |
 |-----------|-------|--------------|------------|
 | 1024×1024 | 20 | ~15–20s | ~13GB |
 | 1024×1024 | 28 | ~20–30s | ~13GB |
 | 1344×576 | 25 | ~15–20s | ~12GB |
-| 768×1344 | 25 | ~15–20s | ~12GB |
 
-First generation includes model loading (~10–15s extra).
+### FLUX.2-klein-9B
+
+| Resolution | Steps | Expected Time | VRAM Usage |
+|-----------|-------|--------------|------------|
+| 1024×1024 | 20 | ~10–15s | ~11GB |
+| 1344×576 | 20 | ~10–15s | ~10GB |
+
+### SDXL Base 1.0
+
+| Resolution | Steps | Expected Time | VRAM Usage |
+|-----------|-------|--------------|------------|
+| 1024×1024 | 30 | ~8–12s | ~7GB |
+| 1344×576 | 30 | ~6–10s | ~6GB |
+
+First generation for each model includes model loading (~10–15s extra). Switching between models requires unloading the previous one.
 
 ## Comparison: XPU vs CUDA
 
@@ -262,9 +293,11 @@ First generation includes model loading (~10–15s extra).
 |---------|----------------------|----------------------|
 | Target hardware | Intel Arc / iGPU | NVIDIA GPU |
 | FLUX support | Limited | Full (fp8) |
+| SDXL support | Limited | Full |
 | Image format | Pre-built Docker image | Custom Dockerfile |
 | Speed (FLUX.1-dev) | Very slow (CPU fallback) | ~15–20s (RTX 5080) |
-| VRAM required | N/A (shared memory) | ~13GB |
+| Speed (SDXL) | ~60s+ | ~8–12s (RTX 5080) |
+| VRAM required | N/A (shared memory) | ~7–13GB depending on model |
 
 ## Troubleshooting
 
@@ -278,20 +311,17 @@ docker compose build --no-cache
 
 ### Out of Memory
 
-If you hit OOM errors, the fp8 model + VAE + text encoders may exceed 16GB in edge cases:
+If you hit OOM errors:
 
 1. Close other GPU-using applications
 2. Check VRAM: `nvidia-smi`
-3. Consider using `t5xxl_fp8_e4m3fn` (already default) instead of the full T5-XXL
+3. Use fp8 quantized models where available
+4. Switch to a smaller model (FLUX.2-klein uses less VRAM than FLUX.1-dev)
 
 ### Model Not Found
 
-Ensure model files are in the correct subdirectories matching `extra_model_paths.yaml`:
+Ensure model files are in the correct subdirectories matching `extra_model_paths.yaml`. Run `python list-models.py /path/to/models` to verify.
 
-```
-models/
-├── unet/flux1-dev-fp8.safetensors
-├── clip/clip_l.safetensors
-├── clip/t5xxl_fp8_e4m3fn.safetensors
-└── vae/ae.safetensors
-```
+### Switching Models
+
+ComfyUI can only hold one large model in VRAM at a time. When you submit a workflow with a different model (e.g., SDXL after FLUX), ComfyUI will automatically unload the previous model and load the new one. This adds ~10–15s on the first generation after a switch.

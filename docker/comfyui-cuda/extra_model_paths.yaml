@@ -1,6 +1,17 @@
 # ComfyUI Extra Model Paths
 # Maps ComfyUI model types to shared model directories on the host.
 # The base_path corresponds to the /data/models volume mount in compose.yaml.
+#
+# Directory structure:
+#   /data/models/
+#   ├── checkpoints/    SD/SDXL single-file .safetensors checkpoints
+#   ├── unet/           Diffusion models (FLUX, Flux2, standalone UNets)
+#   ├── clip/           Text encoders (CLIP-L, T5-XXL)
+#   ├── vae/            VAE / autoencoder models
+#   ├── loras/          LoRA fine-tunes
+#   ├── embeddings/     Textual inversions (EasyNegative, etc.)
+#   ├── upscale_models/ Upscale models (RealESRGAN, UltraSharp, Nomos8k)
+#   └── controlnet/     ControlNet models (if used)
 
 comfyui:
     base_path: /data/models
@@ -8,6 +19,7 @@ comfyui:
     clip: clip/
     vae: vae/
     unet: unet/
+    diffusion_models: unet/
     loras: loras/
     embeddings: embeddings/
     upscale_models: upscaler/

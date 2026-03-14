@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """
-Download FLUX.1-dev and other models for ComfyUI (CUDA).
+Download models for ComfyUI (CUDA).
 
-ComfyUI uses separate component files for FLUX (UNet, CLIP, T5, VAE)
-rather than monolithic checkpoints. This script handles both FLUX components
-and standard checkpoint/LoRA/embedding downloads.
+Supports FLUX.1-dev, FLUX.2-klein, SDXL, and auxiliary models
+(embeddings, LoRAs, upscalers). ComfyUI uses separate component files
+for FLUX (UNet, CLIP, T5, VAE) and single-file checkpoints for SD/SDXL.
 
 Usage:
     python download-models.py [MODELS_DIR]
     python download-models.py D:\\SD\\models
     python download-models.py /data/models --all
     python download-models.py --list
+    python download-models.py /data/models --checkpoints   # SDXL checkpoint only
+    python download-models.py /data/models --flux2          # Flux2-klein-9b
 
 Requires: pip install huggingface-hub[cli]
 
-For gated models (FLUX.1-dev), you must first:
-    1. Accept the license at https://huggingface.co/black-forest-labs/FLUX.1-dev
+For gated models (FLUX.1-dev, FLUX.2-klein), you must first:
+    1. Accept the license on HuggingFace
     2. Log in: huggingface-cli login
 """
 
@@ -68,6 +70,53 @@ FLUX_COMPONENTS = {
     },
 }
 
+# ─── FLUX.2 Models ───────────────────────────────────────────────────────────
+# FLUX.2-klein is a 9B parameter model — smaller and faster than FLUX.1-dev.
+# Uses the same CLIP/T5/VAE components as FLUX.1-dev.
+
+FLUX2_COMPONENTS = {
+    "flux2-klein-9b": {
+        "hf_repo": "black-forest-labs/FLUX.2-klein-9B",
+        "hf_file": "flux-2-klein-9b.safetensors",
+        "subdir": "unet",
+        "description": "FLUX.2-klein 9B diffusion model (smaller, faster than FLUX.1-dev)",
+        "size_approx": "~17GB",
+        "required": True,
+        "gated": True,
+    },
+}
+
+# ─── FLUX.1-Kontext (Image Editing) ──────────────────────────────────────────
+# FLUX.1-Kontext-dev is a context-aware image editing model.
+# Uses the same CLIP/T5/VAE components as FLUX.1-dev.
+
+FLUX_KONTEXT_COMPONENTS = {
+    "flux1-kontext-dev": {
+        "hf_repo": "black-forest-labs/FLUX.1-Kontext-dev",
+        "hf_file": "flux1-kontext-dev.safetensors",
+        "subdir": "unet",
+        "description": "FLUX.1-Kontext-dev — context-aware image editing model",
+        "size_approx": "~22GB",
+        "required": True,
+        "gated": True,
+    },
+}
+
+# ─── Checkpoints (Single-File Models) ────────────────────────────────────────
+# Standard SD/SDXL models in single-file .safetensors format.
+# These go into checkpoints/ and use CheckpointLoaderSimple in ComfyUI.
+
+CHECKPOINTS = {
+    "sdxl-base-1.0": {
+        "hf_repo": "stabilityai/stable-diffusion-xl-base-1.0",
+        "hf_file": "sd_xl_base_1.0.safetensors",
+        "subdir": "checkpoints",
+        "description": "Stable Diffusion XL Base 1.0 — high quality, 1024px native",
+        "size_approx": "~6.9GB",
+        "gated": False,
+    },
+}
+
 # ─── Embeddings ───────────────────────────────────────────────────────────────
 
 EMBEDDINGS = {
@@ -108,6 +157,14 @@ LORAS = {
         "description": "SDXL Lightning 4-step LoRA — fast generation (ByteDance)",
         "size_approx": "~400MB",
     },
+    "add-detail-xl": {
+        "url": None,
+        "filename": "add-detail-xl.safetensors",
+        "subdir": "loras",
+        "description": "Add Detail XL — enhances fine detail in SDXL generations",
+        "size_approx": "~220MB",
+        "note": "Manual download from CivitAI: https://civitai.com/models/82098",
+    },
     "detail-tweaker-xl": {
         "url": None,
         "filename": "detail-tweaker-xl.safetensors",
@@ -118,10 +175,10 @@ LORAS = {
     },
     "film-grain-xl": {
         "url": None,
-        "filename": "film-grain-xl.safetensors",
+        "filename": "cinematic style film grain style film noise style v1-step00001950.safetensors",
         "subdir": "loras",
-        "description": "Film Grain XL — cinematic film grain effect",
-        "size_approx": "~150MB",
+        "description": "Cinematic film grain — film noise effect for cinematic look",
+        "size_approx": "~300MB",
         "note": "Manual download from CivitAI: https://civitai.com/models/202388",
     },
 }
@@ -248,29 +305,78 @@ def download_url(url, save_path, label, force=False):
     return True
 
 
+def download_registry(registry, models_dir, force=False, use_hf=True):
+    """Download all items from a registry dict. Returns (downloaded, skipped, failed)."""
+    downloaded = skipped = failed = 0
+
+    for key, comp in registry.items():
+        if use_hf and "hf_repo" in comp:
+            save_dir = os.path.join(models_dir, comp["subdir"])
+            save_path = os.path.join(save_dir, comp["hf_file"])
+            label = f"{comp['description']} ({comp['size_approx']})"
+            print(f"\n  [{key}] {label}")
+
+            if os.path.exists(save_path) and not force:
+                size = os.path.getsize(save_path)
+                print_skip(f"Already exists ({format_size(size)})")
+                skipped += 1
+                continue
+
+            try:
+                result = download_hf_file(
+                    comp["hf_repo"], comp["hf_file"], save_dir, force=force
+                )
+                downloaded += 1 if result else 0
+                skipped += 0 if result else 1
+            except Exception as e:
+                print_fail(f"Failed: {e}")
+                if comp.get("gated"):
+                    print(f"         This is a gated model. Make sure you've:")
+                    print(f"         1. Accepted the license on HuggingFace")
+                    print(f"         2. Logged in: huggingface-cli login")
+                failed += 1
+
+        elif "url" in comp:
+            filename = comp.get("filename", comp.get("hf_file"))
+            save_path = os.path.join(models_dir, comp["subdir"], filename)
+
+            if comp["url"] is None:
+                note = comp.get("note", "No URL — manual download required")
+                print_skip(f"{key} — {note}")
+                continue
+
+            try:
+                result = download_url(comp["url"], save_path, key, force=force)
+                downloaded += 1 if result else 0
+                skipped += 0 if result else 1
+            except Exception as e:
+                print_fail(f"{key}: {e}")
+                failed += 1
+
+    return downloaded, skipped, failed
+
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Download models for ComfyUI CUDA (FLUX.1-dev + extras)",
+        description="Download models for ComfyUI CUDA",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-FLUX.1-dev components (default):
-  unet/flux1-dev-fp8.safetensors           (~12GB)  fp8 quantized diffusion model
-  clip/clip_l.safetensors                  (~250MB)  CLIP-L text encoder
-  clip/t5xxl_fp8_e4m3fn.safetensors        (~5GB)   T5-XXL fp8 text encoder
-  vae/ae.safetensors                       (~335MB)  FLUX autoencoder
-
-Total FLUX.1-dev: ~18GB
-
-With --all: also downloads embeddings, LoRAs, and upscalers.
+Model groups:
+  (default)       FLUX.1-dev components (~18GB)
+  --checkpoints   SDXL base checkpoint (~6.9GB)
+  --flux2         FLUX.2-klein-9B (~17GB)
+  --kontext       FLUX.1-Kontext-dev (~22GB)
+  --extras        Embeddings, LoRAs, upscalers
+  --all           Everything above
 
 Model directory structure:
   models/
-  ├── unet/           FLUX UNet weights
+  ├── checkpoints/    SD/SDXL single-file checkpoints
+  ├── unet/           FLUX UNet / diffusion weights
   ├── clip/           Text encoders (CLIP-L, T5-XXL)
   ├── vae/            VAE / autoencoder
-  ├── checkpoints/    Full model checkpoints (SD, SDXL .safetensors)
   ├── loras/          LoRA fine-tunes
   ├── embeddings/     Textual inversions
   └── upscaler/       Upscale models (RealESRGAN, UltraSharp, Nomos8k)
@@ -288,11 +394,23 @@ shared automatically.
     )
     parser.add_argument(
         "--all", action="store_true",
-        help="Download everything: FLUX components + embeddings + LoRAs + upscalers",
+        help="Download everything: FLUX.1-dev + SDXL + FLUX.2 + Kontext + extras",
     )
     parser.add_argument(
         "--flux", action="store_true", default=True,
         help="Download FLUX.1-dev components (default: true)",
+    )
+    parser.add_argument(
+        "--flux2", action="store_true",
+        help="Download FLUX.2-klein-9B diffusion model",
+    )
+    parser.add_argument(
+        "--kontext", action="store_true",
+        help="Download FLUX.1-Kontext-dev (context-aware image editing)",
+    )
+    parser.add_argument(
+        "--checkpoints", action="store_true",
+        help="Download SDXL base checkpoint (single-file .safetensors)",
     )
     parser.add_argument(
         "--extras", action="store_true",
@@ -313,6 +431,21 @@ shared automatically.
     if args.list_models:
         print_header("FLUX.1-dev Components (default)")
         for key, c in FLUX_COMPONENTS.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + c['hf_file']:45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
+        print_header("FLUX.2-klein-9B (--flux2 or --all)")
+        for key, c in FLUX2_COMPONENTS.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + c['hf_file']:45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
+        print_header("FLUX.1-Kontext-dev (--kontext or --all)")
+        for key, c in FLUX_KONTEXT_COMPONENTS.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + c['hf_file']:45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
+        print_header("Checkpoints (--checkpoints or --all)")
+        for key, c in CHECKPOINTS.items():
             gated = " [gated]" if c.get("gated") else ""
             print(f"  {c['subdir'] + '/' + c['hf_file']:45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
 
@@ -337,105 +470,85 @@ shared automatically.
     print(f"  Target directory: {models_dir}")
     os.makedirs(models_dir, exist_ok=True)
 
-    downloaded = 0
-    skipped = 0
-    failed = 0
+    # Ensure all subdirectories exist
+    for subdir in ["checkpoints", "unet", "clip", "vae", "loras", "embeddings", "upscaler"]:
+        os.makedirs(os.path.join(models_dir, subdir), exist_ok=True)
+
+    total_downloaded = 0
+    total_skipped = 0
+    total_failed = 0
 
     # ── FLUX.1-dev Components ─────────────────────────────────────────────────
     print_header("FLUX.1-dev Components")
+    d, s, f = download_registry(FLUX_COMPONENTS, models_dir, force=args.force)
+    total_downloaded += d; total_skipped += s; total_failed += f
 
-    for key, comp in FLUX_COMPONENTS.items():
-        save_dir = os.path.join(models_dir, comp["subdir"])
-        save_path = os.path.join(save_dir, comp["hf_file"])
+    # ── FLUX.2-klein-9B ───────────────────────────────────────────────────────
+    if args.all or args.flux2:
+        print_header("FLUX.2-klein-9B")
+        d, s, f = download_registry(FLUX2_COMPONENTS, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
 
-        print(f"\n  [{key}] {comp['description']} ({comp['size_approx']})")
+    # ── FLUX.1-Kontext-dev ────────────────────────────────────────────────────
+    if args.all or args.kontext:
+        print_header("FLUX.1-Kontext-dev")
+        d, s, f = download_registry(FLUX_KONTEXT_COMPONENTS, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
 
-        if os.path.exists(save_path) and not args.force:
-            size = os.path.getsize(save_path)
-            print_skip(f"Already exists ({format_size(size)})")
-            skipped += 1
-            continue
-
-        try:
-            result = download_hf_file(
-                comp["hf_repo"], comp["hf_file"], save_dir, force=args.force
-            )
-            downloaded += 1 if result else 0
-            skipped += 0 if result else 1
-        except Exception as e:
-            print_fail(f"Failed: {e}")
-            if comp.get("gated"):
-                print(f"         This is a gated model. Make sure you've:")
-                print(f"         1. Accepted the license on HuggingFace")
-                print(f"         2. Logged in: huggingface-cli login")
-            failed += 1
+    # ── Checkpoints (SDXL) ────────────────────────────────────────────────────
+    if args.all or args.checkpoints:
+        print_header("Checkpoints (SDXL)")
+        d, s, f = download_registry(CHECKPOINTS, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
 
     # ── Extras ────────────────────────────────────────────────────────────────
     if args.all or args.extras:
-        # Embeddings
         print_header("Embeddings")
-        for key, emb in EMBEDDINGS.items():
-            save_path = os.path.join(models_dir, emb["subdir"], emb["filename"])
-            if emb.get("url"):
-                try:
-                    result = download_url(emb["url"], save_path, key, force=args.force)
-                    downloaded += 1 if result else 0
-                    skipped += 0 if result else 1
-                except Exception as e:
-                    print_fail(f"{key}: {e}")
-                    failed += 1
-            else:
-                note = emb.get("note", "No URL — manual download required")
-                print_skip(f"{key} — {note}")
+        d, s, f = download_registry(EMBEDDINGS, models_dir, force=args.force, use_hf=False)
+        total_downloaded += d; total_skipped += s; total_failed += f
 
-        # LoRAs
         print_header("LoRAs")
-        for key, lora in LORAS.items():
-            save_path = os.path.join(models_dir, lora["subdir"], lora["filename"])
-            if lora.get("url"):
-                try:
-                    result = download_url(lora["url"], save_path, key, force=args.force)
-                    downloaded += 1 if result else 0
-                    skipped += 0 if result else 1
-                except Exception as e:
-                    print_fail(f"{key}: {e}")
-                    failed += 1
-            else:
-                note = lora.get("note", "No URL — manual download required")
-                print_skip(f"{key} — {note}")
+        d, s, f = download_registry(LORAS, models_dir, force=args.force, use_hf=False)
+        total_downloaded += d; total_skipped += s; total_failed += f
 
-        # Upscalers
         print_header("Upscalers")
-        for key, upsc in UPSCALERS.items():
-            save_path = os.path.join(models_dir, upsc["subdir"], upsc["filename"])
-            try:
-                result = download_url(upsc["url"], save_path, key, force=args.force)
-                downloaded += 1 if result else 0
-                skipped += 0 if result else 1
-            except Exception as e:
-                print_fail(f"{key}: {e}")
-                failed += 1
+        d, s, f = download_registry(UPSCALERS, models_dir, force=args.force, use_hf=False)
+        total_downloaded += d; total_skipped += s; total_failed += f
 
     # ── Summary ───────────────────────────────────────────────────────────────
     print_header("Summary")
     total_size = get_dir_size(models_dir)
-    print(f"  Downloaded: {downloaded}")
-    print(f"  Skipped:    {skipped}")
-    print(f"  Failed:     {failed}")
+    print(f"  Downloaded: {total_downloaded}")
+    print(f"  Skipped:    {total_skipped}")
+    print(f"  Failed:     {total_failed}")
     print(f"  Total size: {format_size(total_size)}")
     print(f"  Location:   {models_dir}")
 
-    if downloaded > 0 or skipped > 0:
+    if total_downloaded > 0 or total_skipped > 0:
         print(f"\n  Next steps:")
         print(f"    1. Set MODELS_PATH={models_dir} in .env")
         print(f"    2. docker compose up -d --build")
         print(f"    3. Open http://localhost:8188")
-        print(f"    4. Load workflows/flux1-dev-t2i.json")
 
-    if not args.all and not args.extras:
-        print(f"\n  Tip: Run with --all to also download embeddings, LoRAs, and upscalers.")
+    # Show what wasn't downloaded
+    not_downloaded = []
+    if not args.all:
+        if not args.flux2:
+            not_downloaded.append("--flux2 (FLUX.2-klein-9B, ~17GB)")
+        if not args.kontext:
+            not_downloaded.append("--kontext (FLUX.1-Kontext-dev, ~22GB)")
+        if not args.checkpoints:
+            not_downloaded.append("--checkpoints (SDXL base, ~6.9GB)")
+        if not args.extras:
+            not_downloaded.append("--extras (embeddings, LoRAs, upscalers)")
 
-    if failed > 0:
+    if not_downloaded:
+        print(f"\n  Also available:")
+        for item in not_downloaded:
+            print(f"    {item}")
+        print(f"\n  Or use --all to download everything.")
+
+    if total_failed > 0:
         sys.exit(1)
 
 
