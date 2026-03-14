@@ -1,0 +1,98 @@
+{
+  "_comment": "FLUX.1-Fill-dev inpainting workflow. Upload an image with an alpha channel mask (transparent = area to repaint) or use the MaskEditor in ComfyUI's LoadImage node. FluxGuidance at 30.0, DifferentialDiffusion for seamless blending. denoise=1.0 is correct for Fill model.",
+  "17": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "INPUT_IMAGE_WITH_MASK_FILENAME"
+    }
+  },
+  "32": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    }
+  },
+  "34": {
+    "class_type": "DualCLIPLoader",
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+      "type": "flux"
+    }
+  },
+  "45": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "flux1-fill-dev.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    }
+  },
+  "23": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "PROMPT_TEXT",
+      "clip": ["34", 0]
+    }
+  },
+  "7": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "",
+      "clip": ["34", 0]
+    }
+  },
+  "46": {
+    "class_type": "FluxGuidance",
+    "inputs": {
+      "guidance": 30.0,
+      "conditioning": ["23", 0]
+    }
+  },
+  "48": {
+    "class_type": "InpaintModelConditioning",
+    "inputs": {
+      "noise_mask": true,
+      "positive": ["46", 0],
+      "negative": ["7", 0],
+      "vae": ["32", 0],
+      "pixels": ["17", 0],
+      "mask": ["17", 1]
+    }
+  },
+  "49": {
+    "class_type": "DifferentialDiffusion",
+    "inputs": {
+      "model": ["45", 0]
+    }
+  },
+  "50": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 0,
+      "control_after_generate": "randomize",
+      "steps": 25,
+      "cfg": 2.0,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1.0,
+      "model": ["49", 0],
+      "positive": ["48", 0],
+      "negative": ["48", 1],
+      "latent_image": ["48", 2]
+    }
+  },
+  "51": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["50", 0],
+      "vae": ["32", 0]
+    }
+  },
+  "52": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "flux-fill-inpaint",
+      "images": ["51", 0]
+    }
+  }
+}
