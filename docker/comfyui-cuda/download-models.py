@@ -102,6 +102,24 @@ FLUX2_COMPONENTS = {
         "required": True,
         "gated": True,
     },
+    "flux2-qwen3-8b": {
+        "hf_repo": "Comfy-Org/vae-text-encorder-for-flux-klein-9b",
+        "hf_file": "split_files/text_encoders/qwen_3_8b.safetensors",
+        "subdir": "clip",
+        "description": "Qwen 3 8B text encoder for FLUX.2-klein-9B (replaces CLIP-L + T5-XXL)",
+        "size_approx": "~16GB",
+        "required": True,
+        "gated": False,
+    },
+    "flux2-vae": {
+        "hf_repo": "Comfy-Org/vae-text-encorder-for-flux-klein-9b",
+        "hf_file": "split_files/vae/flux2-vae.safetensors",
+        "subdir": "vae",
+        "description": "FLUX.2 VAE (different from FLUX.1 ae.safetensors)",
+        "size_approx": "~335MB",
+        "required": True,
+        "gated": False,
+    },
 }
 
 # ─── FLUX.1-Kontext (Image Editing) ──────────────────────────────────────────
@@ -273,12 +291,18 @@ def get_dir_size(path):
 # ─── Download Functions ───────────────────────────────────────────────────────
 
 def download_hf_file(repo_id, filename, save_dir, force=False):
-    """Download a single file from HuggingFace using huggingface_hub."""
-    save_path = os.path.join(save_dir, filename)
+    """Download a single file from HuggingFace using huggingface_hub.
+
+    If filename contains subdirectories (e.g. 'split_files/vae/model.safetensors'),
+    the file is downloaded and then moved to save_dir with just the basename.
+    """
+    # The final filename is just the basename (flatten nested HF paths)
+    basename = os.path.basename(filename)
+    save_path = os.path.join(save_dir, basename)
 
     if os.path.exists(save_path) and not force:
         size = os.path.getsize(save_path)
-        print_skip(f"Already exists ({format_size(size)}): {filename}")
+        print_skip(f"Already exists ({format_size(size)}): {basename}")
         return False
 
     try:
@@ -291,12 +315,18 @@ def download_hf_file(repo_id, filename, save_dir, force=False):
     print_step(f"Downloading {repo_id}/{filename}...")
     t0 = time.time()
 
-    downloaded_path = hf_hub_download(
-        repo_id=repo_id,
-        filename=filename,
-        local_dir=save_dir,
-        local_dir_use_symlinks=False,
-    )
+    # Download to a temp directory first, then move to save_dir
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        downloaded_path = hf_hub_download(
+            repo_id=repo_id,
+            filename=filename,
+            local_dir=tmp_dir,
+            local_dir_use_symlinks=False,
+        )
+        # Move to final location (flatten any subdirectory structure)
+        import shutil
+        shutil.move(downloaded_path, save_path)
 
     elapsed = time.time() - t0
     size = os.path.getsize(save_path)
@@ -330,7 +360,9 @@ def download_registry(registry, models_dir, force=False, use_hf=True):
     for key, comp in registry.items():
         if use_hf and "hf_repo" in comp:
             save_dir = os.path.join(models_dir, comp["subdir"])
-            save_path = os.path.join(save_dir, comp["hf_file"])
+            # Use basename for checking existence (HF paths may be nested)
+            basename = os.path.basename(comp["hf_file"])
+            save_path = os.path.join(save_dir, basename)
             label = f"{comp['description']} ({comp['size_approx']})"
             print(f"\n  [{key}] {label}")
 

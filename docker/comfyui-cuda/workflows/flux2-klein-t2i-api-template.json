@@ -1,5 +1,5 @@
 {
-  "_comment": "ComfyUI API-format workflow for FLUX.2-klein-9B text-to-image. Uses same CLIP/T5/VAE as FLUX.1-dev. POST to http://<host>:8188/prompt with {\"prompt\": <this object>}. Replace PROMPT_TEXT, WIDTH, HEIGHT, STEPS, SEED, and FILENAME_PREFIX as needed.",
+  "_comment": "ComfyUI API-format workflow for FLUX.2-klein-9B text-to-image. IMPORTANT: Flux2 uses a different text encoder (Qwen 3 8B) and VAE than Flux1. Uses CLIPLoader with type 'flux2' (NOT DualCLIPLoader). Replace PROMPT_TEXT, WIDTH, HEIGHT, STEPS, SEED, and FILENAME_PREFIX as needed.",
   "1": {
     "class_type": "UNETLoader",
     "inputs": {
@@ -8,17 +8,16 @@
     }
   },
   "2": {
-    "class_type": "DualCLIPLoader",
+    "class_type": "CLIPLoader",
     "inputs": {
-      "clip_name1": "clip_l.safetensors",
-      "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
-      "type": "flux"
+      "clip_name": "qwen_3_8b.safetensors",
+      "type": "flux2"
     }
   },
   "3": {
     "class_type": "VAELoader",
     "inputs": {
-      "vae_name": "ae.safetensors"
+      "vae_name": "flux2-vae.safetensors"
     }
   },
   "4": {
@@ -29,7 +28,7 @@
     }
   },
   "5": {
-    "class_type": "EmptySD3LatentImage",
+    "class_type": "EmptyFlux2LatentImage",
     "inputs": {
       "width": 1024,
       "height": 1024,
@@ -45,7 +44,7 @@
       "latent_image": ["5", 0],
       "seed": 0,
       "control_after_generate": "randomize",
-      "steps": 20,
+      "steps": 28,
       "cfg": 3.5,
       "sampler_name": "euler",
       "scheduler": "simple",
