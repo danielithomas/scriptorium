@@ -6,7 +6,7 @@
 #   /data/models/
 #   ├── checkpoints/    SD/SDXL single-file .safetensors checkpoints
 #   ├── unet/           Diffusion models (FLUX, Flux2, standalone UNets)
-#   ├── clip/           Text encoders (CLIP-L, T5-XXL)
+#   ├── clip/           Text encoders (CLIP-L, T5-XXL, Qwen 3 for Flux2)
 #   ├── vae/            VAE / autoencoder models
 #   ├── loras/          LoRA fine-tunes
 #   ├── embeddings/     Textual inversions (EasyNegative, etc.)
