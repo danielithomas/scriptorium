@@ -70,6 +70,24 @@ FLUX_COMPONENTS = {
     },
 }
 
+# ─── FLUX.1-Fill-dev (Inpainting/Outpainting) ────────────────────────────────
+# Purpose-built inpainting and outpainting model from Black Forest Labs.
+# Far superior to using base FLUX for in/outpainting — supports full denoise
+# (1.0) while maintaining consistency with the original image.
+# Uses the same CLIP/T5/VAE components as FLUX.1-dev.
+
+FLUX_FILL_COMPONENTS = {
+    "flux1-fill-dev": {
+        "hf_repo": "black-forest-labs/FLUX.1-Fill-dev",
+        "hf_file": "flux1-fill-dev.safetensors",
+        "subdir": "unet",
+        "description": "FLUX.1-Fill-dev — dedicated inpainting/outpainting model",
+        "size_approx": "~22GB",
+        "required": True,
+        "gated": True,
+    },
+}
+
 # ─── FLUX.2 Models ───────────────────────────────────────────────────────────
 # FLUX.2-klein is a 9B parameter model — smaller and faster than FLUX.1-dev.
 # Uses the same CLIP/T5/VAE components as FLUX.1-dev.
@@ -401,6 +419,10 @@ shared automatically.
         help="Download FLUX.1-dev components (default: true)",
     )
     parser.add_argument(
+        "--fill", action="store_true",
+        help="Download FLUX.1-Fill-dev (inpainting/outpainting model)",
+    )
+    parser.add_argument(
         "--flux2", action="store_true",
         help="Download FLUX.2-klein-9B diffusion model",
     )
@@ -431,6 +453,11 @@ shared automatically.
     if args.list_models:
         print_header("FLUX.1-dev Components (default)")
         for key, c in FLUX_COMPONENTS.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + c['hf_file']:45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
+        print_header("FLUX.1-Fill-dev (--fill or --all)")
+        for key, c in FLUX_FILL_COMPONENTS.items():
             gated = " [gated]" if c.get("gated") else ""
             print(f"  {c['subdir'] + '/' + c['hf_file']:45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
 
@@ -483,6 +510,12 @@ shared automatically.
     d, s, f = download_registry(FLUX_COMPONENTS, models_dir, force=args.force)
     total_downloaded += d; total_skipped += s; total_failed += f
 
+    # ── FLUX.1-Fill-dev ─────────────────────────────────────────────────────
+    if args.all or args.fill:
+        print_header("FLUX.1-Fill-dev (Inpainting/Outpainting)")
+        d, s, f = download_registry(FLUX_FILL_COMPONENTS, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
+
     # ── FLUX.2-klein-9B ───────────────────────────────────────────────────────
     if args.all or args.flux2:
         print_header("FLUX.2-klein-9B")
@@ -533,6 +566,8 @@ shared automatically.
     # Show what wasn't downloaded
     not_downloaded = []
     if not args.all:
+        if not args.fill:
+            not_downloaded.append("--fill (FLUX.1-Fill-dev inpaint/outpaint, ~22GB)")
         if not args.flux2:
             not_downloaded.append("--flux2 (FLUX.2-klein-9B, ~17GB)")
         if not args.kontext:

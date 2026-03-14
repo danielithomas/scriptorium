@@ -61,9 +61,10 @@ huggingface-cli login
 
 # 3. Download models
 python download-models.py /path/to/models              # FLUX.1-dev only (~18GB)
+python download-models.py /path/to/models --fill       # + FLUX.1-Fill-dev for outpainting (~22GB)
 python download-models.py /path/to/models --checkpoints # + SDXL base (~6.9GB)
 python download-models.py /path/to/models --flux2       # + FLUX.2-klein-9B (~17GB)
-python download-models.py /path/to/models --all         # everything (~65GB+)
+python download-models.py /path/to/models --all         # everything (~80GB+)
 python download-models.py --list                        # see all available downloads
 
 # 4. Configure environment
@@ -84,6 +85,7 @@ docker compose up -d --build
 | Model | Type | Size | Loader | Use Case |
 |-------|------|------|--------|----------|
 | FLUX.1-dev (fp8) | UNet + CLIP + VAE | ~18GB | `UNETLoader` | High quality text-to-image, 12B params |
+| FLUX.1-Fill-dev | UNet | ~22GB | `UNETLoader` | **Inpainting & outpainting** (purpose-built) |
 | FLUX.2-klein-9B | UNet | ~17GB | `UNETLoader` | Faster FLUX, 9B params |
 | FLUX.1-Kontext-dev | UNet | ~22GB | `UNETLoader` | Context-aware image editing |
 | SDXL Base 1.0 | Checkpoint | ~6.9GB | `CheckpointLoaderSimple` | Mature ecosystem, LoRA support |
@@ -119,6 +121,14 @@ The `download-models.py` script fetches everything needed:
 | `clip_l.safetensors` | `clip/` | ~250MB | CLIP-L text encoder |
 | `t5xxl_fp8_e4m3fn.safetensors` | `clip/` | ~5GB | T5-XXL text encoder (fp8 quantized) |
 | `ae.safetensors` | `vae/` | ~335MB | FLUX autoencoder / VAE |
+
+### FLUX.1-Fill-dev (`--fill`)
+
+| File | Location | Size | Description |
+|------|----------|------|-------------|
+| `flux1-fill-dev.safetensors` | `unet/` | ~22GB | Dedicated inpainting/outpainting model |
+
+Purpose-built for inpainting and outpainting by Black Forest Labs. Far superior to using the base FLUX model for these tasks — supports full denoise (1.0) while maintaining consistency with the original image. Uses the same `clip/` and `vae/` components as FLUX.1-dev.
 
 ### FLUX.2-klein-9B (`--flux2`)
 
@@ -176,6 +186,34 @@ Pre-built workflow files in `workflows/`:
 |----------|-----------|-------|----------|
 | `sdxl-t2i-api-template.json` | Configurable | 30 | API automation template |
 | `sdxl-t2i-ultrawide-upscaled.json` | 1344×576 → 4x | 30 | Ultrawide + 4x upscale |
+
+### Outpainting / Inpainting
+
+| Workflow | Model | Use Case |
+|----------|-------|----------|
+| `flux-fill-outpaint-api-template.json` | FLUX.1-Fill-dev | **Recommended.** Single-pass outpainting with DifferentialDiffusion |
+| `flux-fill-inpaint-api-template.json` | FLUX.1-Fill-dev | Inpainting (replace masked regions) |
+| `outpaint-multipass-sdxl-flux-upscale.json` | SDXL + FLUX Fill | **Premium pipeline.** 4-phase: SDXL fill → restore original → FLUX refine → 4x upscale |
+
+#### Outpainting Recommendations
+
+**Why previous outpainting attempts were terrible:** Most approaches use the base generation model with a mask, leading to hard seams, style/lighting inconsistency, and detail loss at boundaries. The solution is threefold:
+
+1. **Use FLUX.1-Fill-dev** — a purpose-built inpainting/outpainting model from Black Forest Labs. Unlike base FLUX or SDXL, it's trained specifically to maintain consistency with existing image content while generating new regions. You can use full denoise strength (1.0) without losing the original.
+
+2. **DifferentialDiffusion** — this node makes denoising strength vary based on a gradient mask. Instead of a hard boundary between "keep" and "regenerate", you get a smooth gradient that eliminates visible seams.
+
+3. **InpaintModelConditioning** — feeds the existing image content directly into the model's conditioning, so it "sees" what's already there when generating new content.
+
+**Single-pass (`flux-fill-outpaint`):** Use for most outpainting tasks. Fast, clean, one model load. Adjust `left`/`top`/`right`/`bottom` padding in the `ImagePadForOutpaint` node. `feathering` controls the gradient blend width (40+ recommended).
+
+**Multi-pass (`outpaint-multipass-sdxl-flux-upscale`):** Use when you need maximum quality or are extending significantly. The 4-phase pipeline:
+1. **SDXL** does the initial rough fill (good at generating plausible content from scratch)
+2. **Original image composited back** with feathered mask (restores any SDXL artifacts in the original area)
+3. **FLUX Fill** refines the transition zone (fixes seams, matches style/lighting)
+4. **4x UltraSharp upscale** for final output
+
+Both workflows require `flux1-fill-dev.safetensors` — download with `--fill` flag.
 
 ### Loading a Workflow
 

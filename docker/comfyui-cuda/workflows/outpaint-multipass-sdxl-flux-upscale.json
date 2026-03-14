@@ -1,0 +1,237 @@
+{
+  "_comment": "Multi-pass outpainting pipeline: SDXL initial fill → restore original detail → FLUX Fill refinement → 4x upscale. This is the premium pipeline for maximum quality outpainting. Requires both sd_xl_base_1.0.safetensors (checkpoints/) and flux1-fill-dev.safetensors (unet/). PHASE 1: SDXL fills the padded area with plausible content. PHASE 2: Original image composited back to restore any detail loss. PHASE 3: FLUX Fill refines the transition zone with DifferentialDiffusion. PHASE 4: 4x upscale for final output.",
+
+  "_phase1_comment": "=== PHASE 1: SDXL Initial Outpaint ===",
+
+  "100": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "INPUT_IMAGE_FILENAME"
+    }
+  },
+  "101": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "sd_xl_base_1.0.safetensors"
+    }
+  },
+  "102": {
+    "class_type": "ImagePadForOutpaint",
+    "inputs": {
+      "left": 256,
+      "top": 0,
+      "right": 256,
+      "bottom": 0,
+      "feathering": 64,
+      "image": ["100", 0]
+    }
+  },
+  "103": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "PROMPT_TEXT",
+      "clip": ["101", 1]
+    }
+  },
+  "104": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "NEGATIVE_PROMPT_TEXT low quality, worst quality, blurry, pixelated, jpeg artifacts, text, watermark, seam, visible border, inconsistent lighting",
+      "clip": ["101", 1]
+    }
+  },
+  "105": {
+    "class_type": "DifferentialDiffusion",
+    "inputs": {
+      "model": ["101", 0]
+    }
+  },
+  "106": {
+    "class_type": "VAEEncodeForInpaint",
+    "inputs": {
+      "pixels": ["102", 0],
+      "vae": ["101", 2],
+      "mask": ["102", 1],
+      "grow_mask_by": 16
+    }
+  },
+  "107": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 0,
+      "control_after_generate": "randomize",
+      "steps": 30,
+      "cfg": 7.0,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 0.95,
+      "model": ["105", 0],
+      "positive": ["103", 0],
+      "negative": ["104", 0],
+      "latent_image": ["106", 0]
+    }
+  },
+  "108": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["107", 0],
+      "vae": ["101", 2]
+    }
+  },
+
+  "_phase2_comment": "=== PHASE 2: Restore Original Detail ===",
+
+  "200": {
+    "class_type": "InvertMask",
+    "inputs": {
+      "mask": ["102", 1]
+    }
+  },
+  "201": {
+    "class_type": "FeatherMask",
+    "inputs": {
+      "mask": ["200", 0],
+      "left": 32,
+      "top": 32,
+      "right": 32,
+      "bottom": 32
+    }
+  },
+  "202": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["108", 0],
+      "source": ["102", 0],
+      "mask": ["201", 0],
+      "x": 0,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+
+  "_phase3_comment": "=== PHASE 3: FLUX Fill Refinement ===",
+
+  "300": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "flux1-fill-dev.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    }
+  },
+  "301": {
+    "class_type": "DualCLIPLoader",
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+      "type": "flux"
+    }
+  },
+  "302": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    }
+  },
+  "303": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "PROMPT_TEXT",
+      "clip": ["301", 0]
+    }
+  },
+  "304": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "",
+      "clip": ["301", 0]
+    }
+  },
+  "305": {
+    "class_type": "FluxGuidance",
+    "inputs": {
+      "guidance": 30.0,
+      "conditioning": ["303", 0]
+    }
+  },
+  "306": {
+    "class_type": "GrowMask",
+    "inputs": {
+      "mask": ["102", 1],
+      "expand": -24,
+      "tapered_corners": true
+    }
+  },
+  "307": {
+    "class_type": "FeatherMask",
+    "inputs": {
+      "mask": ["306", 0],
+      "left": 64,
+      "top": 64,
+      "right": 64,
+      "bottom": 64
+    }
+  },
+  "308": {
+    "class_type": "InpaintModelConditioning",
+    "inputs": {
+      "noise_mask": false,
+      "positive": ["305", 0],
+      "negative": ["304", 0],
+      "vae": ["302", 0],
+      "pixels": ["202", 0],
+      "mask": ["307", 0]
+    }
+  },
+  "309": {
+    "class_type": "DifferentialDiffusion",
+    "inputs": {
+      "model": ["300", 0]
+    }
+  },
+  "310": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 0,
+      "control_after_generate": "randomize",
+      "steps": 25,
+      "cfg": 2.0,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 0.85,
+      "model": ["309", 0],
+      "positive": ["308", 0],
+      "negative": ["308", 1],
+      "latent_image": ["308", 2]
+    }
+  },
+  "311": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["310", 0],
+      "vae": ["302", 0]
+    }
+  },
+
+  "_phase4_comment": "=== PHASE 4: 4x Upscale ===",
+
+  "400": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "4x-UltraSharp.pth"
+    }
+  },
+  "401": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": ["400", 0],
+      "image": ["311", 0]
+    }
+  },
+  "402": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "outpaint-multipass",
+      "images": ["401", 0]
+    }
+  }
+}
