@@ -32,6 +32,12 @@ RUN pip install --no-cache-dir \
     sentencepiece \
     protobuf
 
+# Install ComfyUI-GGUF extension (enables GGUF quantised model loading)
+# Provides UnetLoaderGGUF, CLIPLoaderGGUF, etc. for running Q4/Q5/Q8 models
+RUN git clone --depth 1 \
+    https://github.com/city96/ComfyUI-GGUF.git /app/custom_nodes/ComfyUI-GGUF \
+    && pip install --no-cache-dir -r /app/custom_nodes/ComfyUI-GGUF/requirements.txt 2>/dev/null || true
+
 EXPOSE 8188
 
 # --listen: bind all interfaces (required inside Docker)
