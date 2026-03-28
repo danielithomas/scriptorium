@@ -1,0 +1,299 @@
+{
+  "last_node_id": 11,
+  "last_link_id": 11,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "pos": [100, 100],
+      "size": [315, 82],
+      "properties": {},
+      "widgets_values": [
+        "hidream_i1_dev_fp8.safetensors",
+        "fp8_e4m3fn"
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [1],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "QuadrupleCLIPLoader",
+      "pos": [100, 250],
+      "size": [315, 130],
+      "properties": {},
+      "widgets_values": [
+        "clip_g_hidream.safetensors",
+        "clip_l_hidream.safetensors",
+        "t5xxl_fp8_e4m3fn_scaled.safetensors",
+        "llama_3.1_8b_instruct_fp8_scaled.safetensors"
+      ],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [2, 9],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "VAELoader",
+      "pos": [100, 450],
+      "size": [315, 58],
+      "properties": {},
+      "widgets_values": [
+        "ae.safetensors"
+      ],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [3],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "pos": [500, 100],
+      "size": [420, 200],
+      "properties": {},
+      "title": "Positive Prompt",
+      "widgets_values": [
+        "Panoramic ultrawide fantasy landscape, wide establishing shot, ultrawide angle lens, sweeping mountain valley at golden hour, dramatic clouds, photorealistic, 8k, ultra detailed"
+      ],
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [4],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [500, 340],
+      "size": [420, 60],
+      "properties": {},
+      "title": "Negative Prompt",
+      "widgets_values": [
+        ""
+      ],
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [6],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "EmptySD3LatentImage",
+      "pos": [500, 430],
+      "size": [315, 106],
+      "properties": {},
+      "widgets_values": [
+        2560,
+        1024,
+        1
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [5],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "KSampler",
+      "pos": [970, 100],
+      "size": [315, 262],
+      "properties": {},
+      "widgets_values": [
+        0,
+        "randomize",
+        50,
+        5.0,
+        "euler_ancestral",
+        "simple",
+        1.0
+      ],
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 4
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [7],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [1350, 100],
+      "size": [210, 46],
+      "properties": {},
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 7
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [8],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "UpscaleModelLoader",
+      "pos": [1350, 200],
+      "size": [315, 58],
+      "properties": {},
+      "widgets_values": [
+        "4x-UltraSharp.pth"
+      ],
+      "outputs": [
+        {
+          "name": "UPSCALE_MODEL",
+          "type": "UPSCALE_MODEL",
+          "links": [10],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "ImageUpscaleWithModel",
+      "pos": [1700, 100],
+      "size": [241, 46],
+      "properties": {},
+      "inputs": [
+        {
+          "name": "upscale_model",
+          "type": "UPSCALE_MODEL",
+          "link": 10
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [11],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "pos": [2000, 100],
+      "size": [315, 270],
+      "properties": {},
+      "widgets_values": [
+        "hidream-i1-dev-ultrawide"
+      ],
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 11
+        }
+      ]
+    }
+  ],
+  "links": [
+    [1, 1, 0, 6, 0, "MODEL"],
+    [2, 2, 0, 4, 0, "CLIP"],
+    [3, 3, 0, 8, 1, "VAE"],
+    [4, 4, 0, 6, 1, "CONDITIONING"],
+    [5, 5, 0, 6, 3, "LATENT"],
+    [6, 7, 0, 6, 2, "CONDITIONING"],
+    [7, 6, 0, 8, 0, "LATENT"],
+    [8, 8, 0, 11, 1, "IMAGE"],
+    [9, 2, 0, 7, 0, "CLIP"],
+    [10, 10, 0, 11, 0, "UPSCALE_MODEL"],
+    [11, 11, 0, 9, 0, "IMAGE"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7
+    },
+    "_notes": [
+      "HiDream-I1 Dev FP8 ultrawide wallpaper workflow.",
+      "Generates at 2560x1024 (21:9) then upscales 4x with UltraSharp.",
+      "Output: ~10240x4096 before any Lanczos downsample to target (e.g. 3440x1440).",
+      "Models needed (download with: python download-models.py --hidream).",
+      "Also requires: upscaler/4x-UltraSharp.pth (download with: python download-models.py --extras)."
+    ]
+  },
+  "version": 0.4
+}

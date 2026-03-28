@@ -1,6 +1,6 @@
 # ComfyUI — NVIDIA CUDA (Multi-Model)
 
-[ComfyUI](https://github.com/comfyanonymous/ComfyUI) node-based image generation with NVIDIA CUDA acceleration. Supports **FLUX.1-dev**, **FLUX.2-klein-9B**, **SDXL**, and **FLUX.1-Kontext-dev** on RTX 5080 / 16GB VRAM.
+[ComfyUI](https://github.com/comfyanonymous/ComfyUI) node-based image generation with NVIDIA CUDA acceleration. Supports **FLUX.1-dev**, **FLUX.2-klein-9B**, **SDXL**, **FLUX.1-Kontext-dev**, **HiDream-I1**, and **Qwen-Image** on RTX 5080 / 16GB+ VRAM.
 
 ## Architecture
 
@@ -64,7 +64,9 @@ python download-models.py /path/to/models              # FLUX.1-dev only (~18GB)
 python download-models.py /path/to/models --fill       # + FLUX.1-Fill-dev for outpainting (~22GB)
 python download-models.py /path/to/models --checkpoints # + SDXL base (~6.9GB)
 python download-models.py /path/to/models --flux2       # + FLUX.2-klein-9B (~17GB)
-python download-models.py /path/to/models --all         # everything (~80GB+)
+python download-models.py /path/to/models --all         # everything (~160GB+)
+python download-models.py /path/to/models --hidream     # + HiDream-I1 Dev FP8 (~32GB)
+python download-models.py /path/to/models --qwen-image  # + Qwen-Image FP8 (~29GB)
 python download-models.py --list                        # see all available downloads
 
 # 4. Configure environment
@@ -89,8 +91,10 @@ docker compose up -d --build
 | FLUX.2-klein-9B | UNet | ~17GB | `UNETLoader` | Faster FLUX, 9B params |
 | FLUX.1-Kontext-dev | UNet | ~22GB | `UNETLoader` | Context-aware image editing |
 | SDXL Base 1.0 | Checkpoint | ~6.9GB | `CheckpointLoaderSimple` | Mature ecosystem, LoRA support |
+| HiDream-I1 Dev (fp8) | UNet + 4×CLIP + VAE | ~32GB | `UNETLoader` + `QuadrupleCLIPLoader` | 17B DiT, requires 4 text encoders |
+| Qwen-Image (fp8) | UNet + CLIP + VAE | ~29GB | `UNETLoader` + `CLIPLoader` | 20B MMDiT, excellent multilingual text |
 
-All FLUX models share the same CLIP-L, T5-XXL, and VAE components. SDXL is a self-contained checkpoint.
+All FLUX models share the same CLIP-L, T5-XXL, and VAE components. SDXL is a self-contained checkpoint. HiDream uses 4 dedicated text encoders (CLIP-G, CLIP-L, T5-XXL, Llama-3.1-8B). Qwen-Image uses a single Qwen 2.5 VL 7B encoder.
 
 ### Shared Model Directory
 
