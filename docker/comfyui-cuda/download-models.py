@@ -2,9 +2,10 @@
 """
 Download models for ComfyUI (CUDA).
 
-Supports FLUX.1-dev, FLUX.2-klein, SDXL, and auxiliary models
-(embeddings, LoRAs, upscalers). ComfyUI uses separate component files
-for FLUX (UNet, CLIP, T5, VAE) and single-file checkpoints for SD/SDXL.
+Supports FLUX.1-dev, FLUX.2-klein, SDXL, HiDream-I1, Qwen-Image, and auxiliary
+models (embeddings, LoRAs, upscalers). ComfyUI uses separate component files
+for FLUX/HiDream/Qwen-Image (UNet/diffusion, CLIP, VAE) and single-file
+checkpoints for SD/SDXL.
 
 Usage:
     python download-models.py [MODELS_DIR]
@@ -13,6 +14,8 @@ Usage:
     python download-models.py --list
     python download-models.py /data/models --checkpoints   # SDXL checkpoint only
     python download-models.py /data/models --flux2          # Flux2-klein-9b
+    python download-models.py /data/models --hidream        # HiDream-I1 Dev FP8
+    python download-models.py /data/models --qwen-image     # Qwen-Image FP8
 
 Requires: pip install huggingface-hub[cli]
 
@@ -219,6 +222,106 @@ LORAS = {
     },
 }
 
+# ─── HiDream-I1 Components ───────────────────────────────────────────────────
+# HiDream-I1 is a 17B parameter diffusion transformer with four text encoders:
+# CLIP-G, CLIP-L (both HiDream-specific variants), T5-XXL, and Llama-3.1-8B.
+# The diffusion model goes into diffusion_models/ (mapped to unet/ by ComfyUI).
+# All text encoders go into clip/ and are loaded via QuadrupleCLIPLoader.
+# Source: https://huggingface.co/Comfy-Org/HiDream-I1_ComfyUI
+
+HIDREAM_COMPONENTS = {
+    "hidream-i1-dev-fp8": {
+        "hf_repo": "Comfy-Org/HiDream-I1_ComfyUI",
+        "hf_file": "split_files/diffusion_models/hidream_i1_dev_fp8.safetensors",
+        "subdir": "unet",
+        "description": "HiDream-I1 Dev diffusion model (FP8, ~16GB VRAM)",
+        "size_approx": "~17GB",
+        "required": True,
+        "gated": False,
+    },
+    "hidream-clip-g": {
+        "hf_repo": "Comfy-Org/HiDream-I1_ComfyUI",
+        "hf_file": "split_files/text_encoders/clip_g_hidream.safetensors",
+        "subdir": "clip",
+        "description": "CLIP-G text encoder (HiDream-specific variant)",
+        "size_approx": "~1.4GB",
+        "required": True,
+        "gated": False,
+    },
+    "hidream-clip-l": {
+        "hf_repo": "Comfy-Org/HiDream-I1_ComfyUI",
+        "hf_file": "split_files/text_encoders/clip_l_hidream.safetensors",
+        "subdir": "clip",
+        "description": "CLIP-L text encoder (HiDream-specific variant)",
+        "size_approx": "~250MB",
+        "required": True,
+        "gated": False,
+    },
+    "hidream-t5xxl-fp8": {
+        "hf_repo": "Comfy-Org/HiDream-I1_ComfyUI",
+        "hf_file": "split_files/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors",
+        "subdir": "clip",
+        "description": "T5-XXL text encoder (FP8, scaled — HiDream variant)",
+        "size_approx": "~5.2GB",
+        "required": True,
+        "gated": False,
+    },
+    "hidream-llama-3.1-8b-fp8": {
+        "hf_repo": "Comfy-Org/HiDream-I1_ComfyUI",
+        "hf_file": "split_files/text_encoders/llama_3.1_8b_instruct_fp8_scaled.safetensors",
+        "subdir": "clip",
+        "description": "Llama 3.1 8B Instruct text encoder (FP8) for HiDream",
+        "size_approx": "~9GB",
+        "required": True,
+        "gated": False,
+    },
+    "hidream-vae": {
+        "hf_repo": "Comfy-Org/HiDream-I1_ComfyUI",
+        "hf_file": "split_files/vae/ae.safetensors",
+        "subdir": "vae",
+        "description": "HiDream VAE / autoencoder",
+        "size_approx": "~335MB",
+        "required": True,
+        "gated": False,
+    },
+}
+
+# ─── Qwen-Image Components ────────────────────────────────────────────────────
+# Qwen-Image is a 20B MMDiT model from Alibaba's Qwen team (Apache 2.0).
+# Excellent multilingual text rendering and diverse artistic styles.
+# Uses a single Qwen 2.5 VL 7B vision-language encoder (CLIPLoader, qwen_image type).
+# Source: https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI
+
+QWEN_IMAGE_COMPONENTS = {
+    "qwen-image-dit-fp8": {
+        "hf_repo": "Comfy-Org/Qwen-Image_ComfyUI",
+        "hf_file": "split_files/diffusion_models/qwen_image_fp8_e4m3fn.safetensors",
+        "subdir": "unet",
+        "description": "Qwen-Image diffusion transformer (FP8, ~24GB VRAM)",
+        "size_approx": "~20GB",
+        "required": True,
+        "gated": False,
+    },
+    "qwen-image-vl-encoder-fp8": {
+        "hf_repo": "Comfy-Org/Qwen-Image_ComfyUI",
+        "hf_file": "split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
+        "subdir": "clip",
+        "description": "Qwen 2.5 VL 7B vision-language encoder (FP8)",
+        "size_approx": "~9.4GB",
+        "required": True,
+        "gated": False,
+    },
+    "qwen-image-vae": {
+        "hf_repo": "Comfy-Org/Qwen-Image_ComfyUI",
+        "hf_file": "split_files/vae/qwen_image_vae.safetensors",
+        "subdir": "vae",
+        "description": "Qwen-Image VAE",
+        "size_approx": "~254MB",
+        "required": True,
+        "gated": False,
+    },
+}
+
 # ─── Upscalers ────────────────────────────────────────────────────────────────
 
 UPSCALERS = {
@@ -418,14 +521,17 @@ Model groups:
   --checkpoints   SDXL base checkpoint (~6.9GB)
   --flux2         FLUX.2-klein-9B (~17GB)
   --kontext       FLUX.1-Kontext-dev (~22GB)
+  --hidream        HiDream-I1 Dev FP8 + text encoders (~32GB)
+  --qwen-image    Qwen-Image FP8 + VL encoder (~29GB)
   --extras        Embeddings, LoRAs, upscalers
   --all           Everything above
 
 Model directory structure:
   models/
   ├── checkpoints/    SD/SDXL single-file checkpoints
-  ├── unet/           FLUX UNet / diffusion weights
-  ├── clip/           Text encoders (CLIP-L, T5-XXL)
+  ├── unet/           FLUX/HiDream/Qwen-Image diffusion weights
+  │                   (ComfyUI also maps diffusion_models/ → here)
+  ├── clip/           Text encoders (CLIP-L, CLIP-G, T5-XXL, Llama, Qwen VL)
   ├── vae/            VAE / autoencoder
   ├── loras/          LoRA fine-tunes
   ├── embeddings/     Textual inversions
@@ -444,7 +550,7 @@ shared automatically.
     )
     parser.add_argument(
         "--all", action="store_true",
-        help="Download everything: FLUX.1-dev + SDXL + FLUX.2 + Kontext + extras",
+        help="Download everything: FLUX.1-dev + SDXL + FLUX.2 + Kontext + HiDream + Qwen-Image + extras",
     )
     parser.add_argument(
         "--flux", action="store_true", default=True,
@@ -465,6 +571,14 @@ shared automatically.
     parser.add_argument(
         "--checkpoints", action="store_true",
         help="Download SDXL base checkpoint (single-file .safetensors)",
+    )
+    parser.add_argument(
+        "--hidream", action="store_true",
+        help="Download HiDream-I1 Dev (FP8) with all four text encoders (~32GB total)",
+    )
+    parser.add_argument(
+        "--qwen-image", action="store_true", dest="qwen_image",
+        help="Download Qwen-Image (FP8) with Qwen 2.5 VL encoder (~29GB total)",
     )
     parser.add_argument(
         "--extras", action="store_true",
@@ -503,6 +617,16 @@ shared automatically.
             gated = " [gated]" if c.get("gated") else ""
             print(f"  {c['subdir'] + '/' + c['hf_file']:45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
 
+        print_header("HiDream-I1 Dev FP8 (--hidream or --all)")
+        for key, c in HIDREAM_COMPONENTS.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
+        print_header("Qwen-Image FP8 (--qwen-image or --all)")
+        for key, c in QWEN_IMAGE_COMPONENTS.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
         print_header("Checkpoints (--checkpoints or --all)")
         for key, c in CHECKPOINTS.items():
             gated = " [gated]" if c.get("gated") else ""
@@ -530,7 +654,7 @@ shared automatically.
     os.makedirs(models_dir, exist_ok=True)
 
     # Ensure all subdirectories exist
-    for subdir in ["checkpoints", "unet", "clip", "vae", "loras", "embeddings", "upscaler"]:
+    for subdir in ["checkpoints", "unet", "clip", "vae", "loras", "embeddings", "upscaler", "diffusion_models"]:
         os.makedirs(os.path.join(models_dir, subdir), exist_ok=True)
 
     total_downloaded = 0
@@ -558,6 +682,18 @@ shared automatically.
     if args.all or args.kontext:
         print_header("FLUX.1-Kontext-dev")
         d, s, f = download_registry(FLUX_KONTEXT_COMPONENTS, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
+
+    # ── HiDream-I1 ────────────────────────────────────────────────────────────
+    if args.all or args.hidream:
+        print_header("HiDream-I1 Dev FP8")
+        d, s, f = download_registry(HIDREAM_COMPONENTS, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
+
+    # ── Qwen-Image ────────────────────────────────────────────────────────────
+    if args.all or args.qwen_image:
+        print_header("Qwen-Image FP8")
+        d, s, f = download_registry(QWEN_IMAGE_COMPONENTS, models_dir, force=args.force)
         total_downloaded += d; total_skipped += s; total_failed += f
 
     # ── Checkpoints (SDXL) ────────────────────────────────────────────────────
@@ -604,6 +740,10 @@ shared automatically.
             not_downloaded.append("--flux2 (FLUX.2-klein-9B, ~17GB)")
         if not args.kontext:
             not_downloaded.append("--kontext (FLUX.1-Kontext-dev, ~22GB)")
+        if not args.hidream:
+            not_downloaded.append("--hidream (HiDream-I1 Dev FP8 + text encoders, ~32GB)")
+        if not args.qwen_image:
+            not_downloaded.append("--qwen-image (Qwen-Image FP8 + VL encoder, ~29GB)")
         if not args.checkpoints:
             not_downloaded.append("--checkpoints (SDXL base, ~6.9GB)")
         if not args.extras:
