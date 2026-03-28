@@ -2,19 +2,21 @@
 """
 Download models for ComfyUI (CUDA).
 
-Supports FLUX.1-dev, FLUX.2-klein, SDXL, HiDream-I1, Qwen-Image, and auxiliary
-models (embeddings, LoRAs, upscalers). ComfyUI uses separate component files
-for FLUX/HiDream/Qwen-Image (UNet/diffusion, CLIP, VAE) and single-file
-checkpoints for SD/SDXL.
+Supports FLUX.1-dev, FLUX.2-klein, SDXL, HiDream-I1, HiDream-I1 GGUF,
+HiDream-I1 Fast, Qwen-Image, and auxiliary models (embeddings, LoRAs,
+upscalers). ComfyUI uses separate component files for FLUX/HiDream/Qwen-Image
+(UNet/diffusion, CLIP, VAE) and single-file checkpoints for SD/SDXL.
 
 Usage:
     python download-models.py [MODELS_DIR]
     python download-models.py D:\\SD\\models
     python download-models.py /data/models --all
     python download-models.py --list
-    python download-models.py /data/models --checkpoints   # SDXL checkpoint only
+    python download-models.py /data/models --checkpoints    # SDXL checkpoint only
     python download-models.py /data/models --flux2          # Flux2-klein-9b
     python download-models.py /data/models --hidream        # HiDream-I1 Dev FP8
+    python download-models.py /data/models --hidream-gguf   # HiDream-I1 Dev GGUF (Q5_K_M)
+    python download-models.py /data/models --hidream-fast   # HiDream-I1 Fast FP8 (16 steps)
     python download-models.py /data/models --qwen-image     # Qwen-Image FP8
 
 Requires: pip install huggingface-hub[cli]
@@ -286,6 +288,49 @@ HIDREAM_COMPONENTS = {
     },
 }
 
+# ─── HiDream-I1 GGUF Components ──────────────────────────────────────────────
+# GGUF-quantized diffusion models from city96/HiDream-I1-Dev-gguf (HuggingFace).
+# Place model files in ComfyUI/models/diffusion_models/.
+# Requires the ComfyUI-GGUF custom extension and the "Unet Loader (GGUF)" node
+# (class_type: UnetLoaderGGUF). Uses the SAME text encoders and VAE as the FP8
+# version in HIDREAM_COMPONENTS — download those separately with --hidream.
+#
+# Available quant sizes (all from city96/HiDream-I1-Dev-gguf):
+#   Q4_K_M  ~11GB  — aggressive quant, fits 12GB VRAM
+#   Q5_K_M  ~13.5GB — recommended for 16GB VRAM (quality/size balance)
+#   Q6_K    ~14.7GB — high quality quant
+#   Q8_0    ~17GB  — near-lossless, needs 24GB+ VRAM
+
+HIDREAM_GGUF_COMPONENTS = {
+    "hidream-i1-dev-gguf-q5km": {
+        "hf_repo": "city96/HiDream-I1-Dev-gguf",
+        "hf_file": "hidream-i1-dev-Q5_K_M.gguf",
+        "subdir": "diffusion_models",
+        "description": "HiDream-I1 Dev GGUF Q5_K_M — recommended for 16GB VRAM",
+        "size_approx": "~13.5GB",
+        "required": True,
+        "gated": False,
+    },
+}
+
+# ─── HiDream-I1 Fast Components ───────────────────────────────────────────────
+# HiDream-I1 Fast is a distilled 16-step variant for quick iteration.
+# Uses the SAME text encoders and VAE as HiDream-I1 Dev — download those with
+# --hidream. Only the diffusion model differs.
+# Source: https://huggingface.co/Comfy-Org/HiDream-I1_ComfyUI
+
+HIDREAM_FAST_COMPONENTS = {
+    "hidream-i1-fast-fp8": {
+        "hf_repo": "Comfy-Org/HiDream-I1_ComfyUI",
+        "hf_file": "split_files/diffusion_models/hidream_i1_fast_fp8.safetensors",
+        "subdir": "unet",
+        "description": "HiDream-I1 Fast diffusion model (FP8, 16 steps, quick iteration)",
+        "size_approx": "~17GB",
+        "required": True,
+        "gated": False,
+    },
+}
+
 # ─── Qwen-Image Components ────────────────────────────────────────────────────
 # Qwen-Image is a 20B MMDiT model from Alibaba's Qwen team (Apache 2.0).
 # Excellent multilingual text rendering and diverse artistic styles.
@@ -517,14 +562,23 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Model groups:
-  (default)       FLUX.1-dev components (~18GB)
-  --checkpoints   SDXL base checkpoint (~6.9GB)
-  --flux2         FLUX.2-klein-9B (~17GB)
-  --kontext       FLUX.1-Kontext-dev (~22GB)
-  --hidream        HiDream-I1 Dev FP8 + text encoders (~32GB)
-  --qwen-image    Qwen-Image FP8 + VL encoder (~29GB)
-  --extras        Embeddings, LoRAs, upscalers
-  --all           Everything above
+  (default)         FLUX.1-dev components (~18GB)
+  --checkpoints     SDXL base checkpoint (~6.9GB)
+  --flux2           FLUX.2-klein-9B (~17GB)
+  --kontext         FLUX.1-Kontext-dev (~22GB)
+  --hidream         HiDream-I1 Dev FP8 + text encoders (~32GB)
+  --hidream-gguf    HiDream-I1 Dev GGUF Q5_K_M (~13.5GB, needs text encoders)
+  --hidream-fast    HiDream-I1 Fast FP8 (~17GB, 16 steps, needs text encoders)
+  --qwen-image      Qwen-Image FP8 + VL encoder (~29GB)
+  --extras          Embeddings, LoRAs, upscalers
+  --all             Everything above
+
+HiDream GGUF notes:
+  Requires the ComfyUI-GGUF custom extension. Use "Unet Loader (GGUF)"
+  (UnetLoaderGGUF) node instead of the standard UNETLoader. Text encoders
+  and VAE are shared with --hidream; download those first. Other quant sizes:
+  Q4_K_M (~11GB), Q6_K (~14.7GB), Q8_0 (~17GB) — swap the filename in the
+  HIDREAM_GGUF_COMPONENTS registry as needed.
 
 Model directory structure:
   models/
@@ -550,7 +604,7 @@ shared automatically.
     )
     parser.add_argument(
         "--all", action="store_true",
-        help="Download everything: FLUX.1-dev + SDXL + FLUX.2 + Kontext + HiDream + Qwen-Image + extras",
+        help="Download everything: FLUX.1-dev + SDXL + FLUX.2 + Kontext + HiDream + HiDream GGUF + HiDream Fast + Qwen-Image + extras",
     )
     parser.add_argument(
         "--flux", action="store_true", default=True,
@@ -575,6 +629,16 @@ shared automatically.
     parser.add_argument(
         "--hidream", action="store_true",
         help="Download HiDream-I1 Dev (FP8) with all four text encoders (~32GB total)",
+    )
+    parser.add_argument(
+        "--hidream-gguf", action="store_true", dest="hidream_gguf",
+        help="Download HiDream-I1 Dev GGUF Q5_K_M diffusion model (~13.5GB, 16GB VRAM). "
+             "Requires ComfyUI-GGUF extension. Text encoders/VAE shared with --hidream.",
+    )
+    parser.add_argument(
+        "--hidream-fast", action="store_true", dest="hidream_fast",
+        help="Download HiDream-I1 Fast FP8 diffusion model (~17GB, 16 steps). "
+             "Text encoders/VAE shared with --hidream.",
     )
     parser.add_argument(
         "--qwen-image", action="store_true", dest="qwen_image",
@@ -619,6 +683,16 @@ shared automatically.
 
         print_header("HiDream-I1 Dev FP8 (--hidream or --all)")
         for key, c in HIDREAM_COMPONENTS.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
+        print_header("HiDream-I1 Dev GGUF (--hidream-gguf or --all)")
+        for key, c in HIDREAM_GGUF_COMPONENTS.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
+        print_header("HiDream-I1 Fast FP8 (--hidream-fast or --all)")
+        for key, c in HIDREAM_FAST_COMPONENTS.items():
             gated = " [gated]" if c.get("gated") else ""
             print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
 
@@ -690,6 +764,20 @@ shared automatically.
         d, s, f = download_registry(HIDREAM_COMPONENTS, models_dir, force=args.force)
         total_downloaded += d; total_skipped += s; total_failed += f
 
+    # ── HiDream-I1 GGUF ───────────────────────────────────────────────────────
+    if args.all or args.hidream_gguf:
+        print_header("HiDream-I1 Dev GGUF (Q5_K_M)")
+        print("  Note: requires ComfyUI-GGUF extension. Text encoders/VAE: use --hidream.")
+        d, s, f = download_registry(HIDREAM_GGUF_COMPONENTS, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
+
+    # ── HiDream-I1 Fast ───────────────────────────────────────────────────────
+    if args.all or args.hidream_fast:
+        print_header("HiDream-I1 Fast FP8")
+        print("  Note: text encoders/VAE shared with --hidream. Download those first.")
+        d, s, f = download_registry(HIDREAM_FAST_COMPONENTS, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
+
     # ── Qwen-Image ────────────────────────────────────────────────────────────
     if args.all or args.qwen_image:
         print_header("Qwen-Image FP8")
@@ -742,6 +830,10 @@ shared automatically.
             not_downloaded.append("--kontext (FLUX.1-Kontext-dev, ~22GB)")
         if not args.hidream:
             not_downloaded.append("--hidream (HiDream-I1 Dev FP8 + text encoders, ~32GB)")
+        if not args.hidream_gguf:
+            not_downloaded.append("--hidream-gguf (HiDream-I1 Dev GGUF Q5_K_M diffusion only, ~13.5GB)")
+        if not args.hidream_fast:
+            not_downloaded.append("--hidream-fast (HiDream-I1 Fast FP8 diffusion only, ~17GB)")
         if not args.qwen_image:
             not_downloaded.append("--qwen-image (Qwen-Image FP8 + VL encoder, ~29GB)")
         if not args.checkpoints:
