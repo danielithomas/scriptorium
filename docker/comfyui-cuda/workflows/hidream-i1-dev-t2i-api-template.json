@@ -1,0 +1,77 @@
+{
+  "_comment": "ComfyUI API-format workflow for HiDream-I1 Dev FP8 text-to-image. 17B param DiT+MoE model with 4 text encoders (clip-g, clip-l, t5xxl, llama-3.1-8b). Dev version uses 28 steps. IMPORTANT: cfg must be 1.0 for dev/fast versions (no negative prompt needed per official docs). Replace PROMPT_TEXT, WIDTH, HEIGHT, SEED, and FILENAME_PREFIX as needed.",
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "hidream_i1_dev_fp8.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "QuadrupleCLIPLoader",
+    "inputs": {
+      "clip_name1": "clip_g_hidream.safetensors",
+      "clip_name2": "clip_l_hidream.safetensors",
+      "clip_name3": "t5xxl_fp8_e4m3fn_scaled.safetensors",
+      "clip_name4": "llama_3.1_8b_instruct_fp8_scaled.safetensors"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "PROMPT_TEXT",
+      "clip": ["2", 0]
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "",
+      "clip": ["2", 0]
+    }
+  },
+  "6": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    }
+  },
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "latent_image": ["6", 0],
+      "seed": 0,
+      "control_after_generate": "randomize",
+      "steps": 28,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1.0
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["7", 0],
+      "vae": ["3", 0]
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["8", 0],
+      "filename_prefix": "FILENAME_PREFIX"
+    }
+  }
+}
