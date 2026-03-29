@@ -43,10 +43,10 @@ RUN pip install --no-cache-dir xformers \
 
 # Core AI libraries
 # audiocraft installed --no-deps to skip strict xformers<0.0.23 and spacy==3.5.2 pins
-# its runtime deps are installed explicitly below
+# flashy from GitHub (PyPI tarball is broken — missing requirements.txt)
 RUN pip install --no-cache-dir --no-deps audiocraft && \
     pip install --no-cache-dir \
-    av encodec flashy huggingface_hub num2words spacy demucs \
+    av encodec git+https://github.com/facebookresearch/flashy.git huggingface_hub num2words spacy demucs \
     einops lameenc sentencepiece protobuf \
     chatterbox-tts \
     git+https://github.com/ai4bharat/IndicF5.git \
