@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get update && apt-get install -y --no-install-recommends \
     python3.11 python3.11-venv python3.11-dev python3-pip \
     build-essential \
-    ffmpeg imagemagick \
+    ffmpeg imagemagick cmake \
     libsndfile1 libsox-dev sox \
     pkg-config libavformat-dev libavcodec-dev libavdevice-dev libavfilter-dev libavutil-dev libswscale-dev libswresample-dev \
     git curl wget ca-certificates \
@@ -70,7 +70,7 @@ RUN pip install --no-cache-dir \
     num2words "spacy>=3.6.1" demucs einops lameenc \
     hydra-core hydra_colorlog julius torchmetrics \
     # === stable-audio-tools deps ===
-    ema-pytorch laion-clap==1.1.4 \
+    ema-pytorch laion-clap==1.1.4 "onnx>=1.16" \
     alias-free-torch==0.0.6 auraloss==0.4.0 descript-audio-codec==1.0.0 \
     einops-exts k-diffusion==0.1.1 local-attention==1.8.6 \
     prefigure==0.0.9 v-diffusion-pytorch==0.0.2 vector-quantize-pytorch \
