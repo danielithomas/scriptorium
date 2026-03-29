@@ -1,0 +1,63 @@
+# ─────────────────────────────────────────────────
+# Slideshow Generator — CPU Inference
+# Target: Intel Core Ultra 9 185H / similar CPU-only hosts
+# ─────────────────────────────────────────────────
+
+FROM ubuntu:24.04
+ARG DEBIAN_FRONTEND=noninteractive
+
+# System packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 python3.12-venv python3-pip \
+    ffmpeg imagemagick \
+    libsndfile1 libsox-dev sox \
+    git curl wget ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ln -sf /usr/bin/python3.12 /usr/bin/python3 && \
+    ln -sf /usr/bin/python3 /usr/bin/python
+
+# Create non-root user
+RUN useradd -m -u 1000 slideuser
+WORKDIR /app
+
+# Python venv
+RUN python3 -m venv /app/venv
+ENV PATH=/app/venv/bin:$PATH
+
+# PyTorch CPU build (lighter weight, no CUDA)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Core AI libraries
+RUN pip install --no-cache-dir \
+    audiocraft \
+    chatterbox-tts \
+    git+https://github.com/ai4bharat/IndicF5.git \
+    transformers accelerate \
+    soundfile scipy numpy
+
+# Pipeline scripts
+COPY scripts/ /app/scripts/
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Model cache directory (mount as volume)
+ENV HF_HOME=/models
+ENV TORCH_HOME=/models/torch
+
+# Defaults for CPU
+ENV MUSICGEN_MODEL=facebook/musicgen-small
+ENV DEVICE=cpu
+ENV TTS_DEVICE=cpu
+ENV FFMPEG_ENCODER=libx264
+ENV MUSIC_VOLUME=0.2
+ENV NUM_THREADS=12
+
+# Volumes
+VOLUME ["/input", "/output", "/models"]
+
+USER slideuser
+ENTRYPOINT ["/app/entrypoint.sh"]

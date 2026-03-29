@@ -1,0 +1,28 @@
+# Slideshow Generator — CPU variant
+# Target: Intel CPU-only hosts (e.g., Core Ultra 185H with iGPU)
+
+services:
+  slideshow-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    container_name: slideshow-cpu
+    volumes:
+      - ${INPUT_PATH:-./input}:/input:ro
+      - ${OUTPUT_PATH:-./output}:/output
+      - ${MODELS_PATH:-./models}:/models
+    environment:
+      - MUSICGEN_MODEL=${MUSICGEN_MODEL:-facebook/musicgen-small}
+      - DEVICE=cpu
+      - TTS_DEVICE=cpu
+      - FFMPEG_ENCODER=libx264
+      - NUM_THREADS=${NUM_THREADS:-12}
+      - MUSIC_VOLUME=${MUSIC_VOLUME:-0.2}
+      - HF_TOKEN=${HF_TOKEN:-}
+    deploy:
+      resources:
+        limits:
+          memory: 24G
+        reservations:
+          memory: 8G
+    command: ["--input=/input/script.json", "--output=/output/final.mp4"]
