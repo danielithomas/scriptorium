@@ -3,8 +3,20 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+
+
+def _magick_cmd():
+    """Return the ImageMagick convert command (v7 'magick convert' or v6 'convert')."""
+    if shutil.which("magick"):
+        return ["magick", "convert"]
+    elif shutil.which("convert"):
+        return ["convert"]
+    else:
+        raise FileNotFoundError("ImageMagick not found: neither 'magick' nor 'convert' in PATH")
+
 
 def main():
     script_path = sys.argv[1]
@@ -24,16 +36,17 @@ def main():
         src = os.path.join(input_dir, slide["image"])
         dst = os.path.join(output_dir, f"slide_{sid:04d}.png")
 
+        convert = _magick_cmd()
         if not os.path.exists(src):
             print(f"  WARNING: Image not found: {src}, generating black frame")
             subprocess.run([
-                "magick", "convert",
+                *convert,
                 "-size", f"{width}x{height}",
                 "xc:black", dst
             ], check=True)
         else:
             subprocess.run([
-                "magick", "convert", src,
+                *convert, src,
                 "-resize", f"{width}x{height}",
                 "-background", "black",
                 "-gravity", "center",
