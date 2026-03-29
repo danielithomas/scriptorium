@@ -4,19 +4,19 @@
 # Requires: nvidia-container-toolkit on host
 # ─────────────────────────────────────────────────
 
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+FROM nvidia/cuda:13.2.0-cudnn-runtime-ubuntu24.04
 ARG DEBIAN_FRONTEND=noninteractive
 
 # System packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.10 python3.10-venv python3-pip \
+    python3.12 python3.12-venv python3-pip \
     ffmpeg imagemagick \
     libsndfile1 libsox-dev sox \
     git curl wget ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN ln -sf /usr/bin/python3.10 /usr/bin/python3 && \
+RUN ln -sf /usr/bin/python3.12 /usr/bin/python3 && \
     ln -sf /usr/bin/python3 /usr/bin/python
 
 # Create non-root user
@@ -24,7 +24,7 @@ RUN useradd -m -u 1000 slideuser
 WORKDIR /app
 
 # Python venv
-RUN python3.10 -m venv /app/venv
+RUN python3.12 -m venv /app/venv
 ENV PATH=/app/venv/bin:$PATH
 
 # PyTorch CUDA build (CUDA 12.4)
