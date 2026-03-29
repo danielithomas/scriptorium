@@ -1,0 +1,53 @@
+# Jellyfin Media Server + Bazarr (subtitle management)
+# Target: Intel CPU with iGPU (QSV/VAAPI hardware transcoding)
+#
+# Prerequisites:
+#   - /dev/dri must exist on host (Intel iGPU)
+#   - Media directory structure created before first run
+#   - Copy .env.example to .env and adjust paths
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    ports:
+      - "${JELLYFIN_PORT:-8096}:8096"
+      - "${JELLYFIN_HTTPS_PORT:-8920}:8920"   # HTTPS (optional)
+      - "7359:7359/udp"                         # Client discovery
+      - "1900:1900/udp"                         # DLNA (for LG TV fallback)
+    volumes:
+      - ${CONFIG_PATH:-/data/docker/jellyfin}/config:/config
+      - ${CONFIG_PATH:-/data/docker/jellyfin}/cache:/cache
+      - ${MEDIA_PATH:-/data/media}:/media
+    devices:
+      - /dev/dri:/dev/dri  # Intel QSV/VAAPI hardware transcoding
+    environment:
+      - TZ=${TZ:-Australia/Melbourne}
+      - JELLYFIN_PublishedServerUrl=${SERVER_URL:-http://localhost:8096}
+    group_add:
+      - "${RENDER_GROUP:-render}"  # GPU access group (check: getent group render)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    restart: unless-stopped
+    ports:
+      - "${BAZARR_PORT:-6767}:6767"
+    volumes:
+      - ${CONFIG_PATH:-/data/docker/jellyfin}/bazarr:/config
+      - ${MEDIA_PATH:-/data/media}/movies:/movies
+      - ${MEDIA_PATH:-/data/media}/tv:/tv
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Australia/Melbourne}
+    depends_on:
+      jellyfin:
+        condition: service_healthy

@@ -24,6 +24,7 @@ scriptorium/
 │   ├── n8n/             # Workflow automation platform
 │   ├── ollama/          # Ollama LLM inference server
 │   ├── ollama-ipex/     # Ollama with Intel IPEX-LLM (Arc / iGPU)
+│   ├── jellyfin/        # Jellyfin media server + Bazarr subtitles (Intel QSV)
 │   ├── opencode/        # AI coding assistant container (Ollama-connected)
 │   └── slideshow-gen/   # Slideshow video generator (TTS + MusicGen + FFmpeg)
 ```
