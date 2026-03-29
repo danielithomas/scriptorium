@@ -4,7 +4,7 @@
 # Requires: nvidia-container-toolkit on host
 # ─────────────────────────────────────────────────
 
-FROM nvidia/cuda:13.0.2-cudnn-runtime-ubuntu24.04
+FROM nvidia/cuda:13.2.0-cudnn-runtime-ubuntu24.04
 ARG DEBIAN_FRONTEND=noninteractive
 
 # System packages
