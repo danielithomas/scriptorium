@@ -37,6 +37,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir torch torchvision torchaudio \
     --index-url https://download.pytorch.org/whl/cu124
 
+# xformers prebuilt wheel (AudioCraft needs xformers<0.0.23, source build fails)
+RUN pip install --no-cache-dir xformers==0.0.22.post7 \
+    --index-url https://download.pytorch.org/whl/cu124
+
 # Core AI libraries
 RUN pip install --no-cache-dir \
     audiocraft \
