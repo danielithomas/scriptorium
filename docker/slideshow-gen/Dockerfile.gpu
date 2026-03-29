@@ -54,14 +54,30 @@ RUN pip install --no-cache-dir --no-deps audiocraft && \
     pip install --no-cache-dir --no-deps git+https://github.com/ai4bharat/IndicF5.git && \
     pip install --no-cache-dir --no-deps stable-audio-tools
 
-# Step 2: Install all shared dependencies at compatible versions
+# Step 2: Install all shared/transitive dependencies at compatible versions.
+# Every dep from the 4 --no-deps packages is listed here explicitly.
+# Grouped by source package for maintainability.
 RUN pip install --no-cache-dir \
+    # === Core (shared by most) ===
     "transformers>=4.50" "accelerate>=1.5" bitsandbytes \
-    huggingface_hub sentencepiece protobuf \
+    huggingface_hub sentencepiece protobuf safetensors \
+    numpy scipy soundfile tqdm \
+    # === chatterbox-tts deps ===
+    "resemble-perth>=1.0.0" omegaconf "diffusers>=0.29" librosa==0.11.0 \
+    pyloudnorm s3tokenizer conformer==0.3.2 pykakasi==2.3.0 spacy-pkuseg \
+    # === audiocraft deps ===
     av encodec git+https://github.com/facebookresearch/flashy.git \
-    num2words spacy demucs \
-    einops lameenc ema-pytorch laion-clap \
-    soundfile scipy numpy
+    num2words "spacy>=3.6.1" demucs einops lameenc \
+    hydra-core hydra_colorlog julius torchmetrics \
+    # === stable-audio-tools deps ===
+    ema-pytorch laion-clap==1.1.4 \
+    alias-free-torch==0.0.6 auraloss==0.4.0 descript-audio-codec==1.0.0 \
+    einops-exts k-diffusion==0.1.1 local-attention==1.8.6 \
+    prefigure==0.0.9 v-diffusion-pytorch==0.0.2 vector-quantize-pytorch \
+    # === IndicF5 deps ===
+    cached_path click datasets jieba matplotlib pydub pypinyin \
+    torchdiffeq transformers_stream_generator vocos "x_transformers>=1.31.14" \
+    git+https://github.com/svp19/INF5.git
 
 # Step 3: API server deps
 RUN pip install --no-cache-dir fastapi uvicorn[standard] python-multipart
