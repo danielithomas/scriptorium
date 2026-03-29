@@ -101,7 +101,7 @@ def main():
 
     if "en" in languages_needed:
         chatterbox_model = load_chatterbox(device)
-    if languages_needed & {"hi", "pa"}:
+    if languages_needed & {"hi", "pa", "gu"}:
         indicf5_model = load_indicf5(device)
 
     for slide in script["slides"]:
@@ -118,7 +118,7 @@ def main():
 
         if lang == "en":
             synthesise_english(chatterbox_model, narration, voice_ref, output_path)
-        elif lang in ("hi", "pa"):
+        elif lang in ("hi", "pa", "gu"):
             ref_text = slide.get("ref_text")
             synthesise_indic(indicf5_model, narration, lang, voice_ref, ref_text, output_path)
         else:

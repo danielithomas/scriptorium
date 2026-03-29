@@ -81,6 +81,7 @@ Output: `./output/final.mp4`
 | `en` | Chatterbox TTS | English, voice cloning via `--voice-ref` |
 | `hi` | IndicF5 | Hindi, optional `ref_text` per slide |
 | `pa` | IndicF5 | Punjabi, optional `ref_text` per slide |
+| `gu` | IndicF5 | Gujarati, optional `ref_text` per slide |
 
 ### Overlay Positions
 
