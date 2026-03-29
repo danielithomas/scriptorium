@@ -59,8 +59,7 @@ RUN pip install --no-cache-dir \
     prefigure==0.0.9 v-diffusion-pytorch==0.0.2 vector-quantize-pytorch \
     # === IndicF5 deps ===
     cached_path click datasets jieba matplotlib pydub pypinyin \
-    torchdiffeq transformers_stream_generator vocos "x_transformers>=1.31.14" \
-    git+https://github.com/svp19/INF5.git
+    torchdiffeq transformers_stream_generator vocos "x_transformers>=1.31.14"
 
 # API server deps
 RUN pip install --no-cache-dir fastapi uvicorn[standard] python-multipart
