@@ -37,13 +37,17 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir torch torchvision torchaudio \
     --index-url https://download.pytorch.org/whl/cu124
 
-# xformers prebuilt wheel (AudioCraft needs xformers<0.0.23, source build fails)
-RUN pip install --no-cache-dir xformers==0.0.22.post7 \
+# xformers prebuilt wheel (install before audiocraft to avoid source build)
+RUN pip install --no-cache-dir xformers \
     --index-url https://download.pytorch.org/whl/cu124
 
 # Core AI libraries
-RUN pip install --no-cache-dir \
-    audiocraft \
+# audiocraft installed --no-deps to skip strict xformers<0.0.23 and spacy==3.5.2 pins
+# its runtime deps are installed explicitly below
+RUN pip install --no-cache-dir --no-deps audiocraft && \
+    pip install --no-cache-dir \
+    av encodec flashy huggingface_hub num2words spacy demucs \
+    einops lameenc sentencepiece protobuf \
     chatterbox-tts \
     git+https://github.com/ai4bharat/IndicF5.git \
     stable-audio-tools \
