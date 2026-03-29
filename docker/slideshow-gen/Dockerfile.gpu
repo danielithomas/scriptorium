@@ -50,9 +50,10 @@ RUN pip install --no-cache-dir --no-deps audiocraft && \
     einops lameenc sentencepiece protobuf \
     chatterbox-tts \
     git+https://github.com/ai4bharat/IndicF5.git \
-    stable-audio-tools \
     transformers accelerate bitsandbytes \
-    soundfile scipy numpy
+    soundfile scipy numpy && \
+    pip install --no-cache-dir --no-deps stable-audio-tools && \
+    pip install --no-cache-dir ema-pytorch laion-clap
 
 # Pipeline scripts
 COPY scripts/ /app/scripts/
