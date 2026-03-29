@@ -32,13 +32,24 @@ RUN pip install --no-cache-dir --upgrade pip && \
     --index-url https://download.pytorch.org/whl/cpu
 
 # Core AI libraries
+# Install AI packages with strict dep pins via --no-deps to prevent
+# them from downgrading transformers/torch
+RUN pip install --no-cache-dir --no-deps audiocraft && \
+    pip install --no-cache-dir --no-deps chatterbox-tts && \
+    pip install --no-cache-dir --no-deps git+https://github.com/ai4bharat/IndicF5.git && \
+    pip install --no-cache-dir --no-deps stable-audio-tools
+
+# Shared dependencies at compatible versions
 RUN pip install --no-cache-dir \
-    audiocraft \
-    chatterbox-tts \
-    git+https://github.com/ai4bharat/IndicF5.git \
-    transformers accelerate \
-    soundfile scipy numpy && \
-    pip install --no-cache-dir fastapi uvicorn[standard] python-multipart
+    "transformers>=4.50" "accelerate>=1.5" \
+    huggingface_hub sentencepiece protobuf \
+    av encodec git+https://github.com/facebookresearch/flashy.git \
+    num2words spacy demucs \
+    einops lameenc ema-pytorch laion-clap \
+    soundfile scipy numpy
+
+# API server deps
+RUN pip install --no-cache-dir fastapi uvicorn[standard] python-multipart
 
 # Pipeline scripts + server
 COPY scripts/ /app/scripts/
