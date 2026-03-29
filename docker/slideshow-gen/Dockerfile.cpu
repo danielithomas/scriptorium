@@ -40,12 +40,14 @@ RUN pip install --no-cache-dir --no-deps audiocraft && \
     pip install --no-cache-dir --no-deps stable-audio-tools
 
 # Shared dependencies at compatible versions
+# Includes transitive deps stripped by --no-deps above
 RUN pip install --no-cache-dir \
     "transformers>=4.50" "accelerate>=1.5" \
-    huggingface_hub sentencepiece protobuf \
+    huggingface_hub sentencepiece protobuf safetensors \
     av encodec git+https://github.com/facebookresearch/flashy.git \
     num2words spacy demucs \
     einops lameenc ema-pytorch laion-clap \
+    perth omegaconf diffusers librosa pyloudnorm s3tokenizer conformer pykakasi \
     soundfile scipy numpy
 
 # API server deps
