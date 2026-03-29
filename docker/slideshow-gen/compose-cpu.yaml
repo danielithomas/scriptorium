@@ -9,7 +9,7 @@ services:
     container_name: slideshow-cpu
     restart: unless-stopped
     ports:
-      - "${API_PORT:-8080}:8080"
+      - "${API_PORT:-8189}:8080"
     volumes:
       - ${DATA_PATH:-./data}:/data
       - ${MODELS_PATH:-./models}:/models

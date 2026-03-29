@@ -42,19 +42,29 @@ RUN pip install --no-cache-dir xformers \
     --index-url https://download.pytorch.org/whl/cu128
 
 # Core AI libraries
-# audiocraft installed --no-deps to skip strict xformers<0.0.23 and spacy==3.5.2 pins
+# Install order matters for cu128 compatibility:
+# 1. transformers + accelerate first (need recent versions for LlamaModel + PyTorch 2.10)
+# 2. audiocraft --no-deps to skip strict xformers<0.0.23 and spacy==3.5.2 pins
+# 3. chatterbox-tts + IndicF5 last (depend on transformers)
 # flashy from GitHub (PyPI tarball is broken — missing requirements.txt)
+# Step 1: Install AI packages that have strict dep pins — use --no-deps to prevent
+# them from downgrading transformers/torch. We satisfy their real deps manually.
 RUN pip install --no-cache-dir --no-deps audiocraft && \
-    pip install --no-cache-dir \
-    av encodec git+https://github.com/facebookresearch/flashy.git huggingface_hub num2words spacy demucs \
-    einops lameenc sentencepiece protobuf \
-    chatterbox-tts \
-    git+https://github.com/ai4bharat/IndicF5.git \
-    transformers accelerate bitsandbytes \
-    soundfile scipy numpy && \
-    pip install --no-cache-dir --no-deps stable-audio-tools && \
-    pip install --no-cache-dir ema-pytorch laion-clap && \
-    pip install --no-cache-dir fastapi uvicorn[standard] python-multipart
+    pip install --no-cache-dir --no-deps chatterbox-tts && \
+    pip install --no-cache-dir --no-deps git+https://github.com/ai4bharat/IndicF5.git && \
+    pip install --no-cache-dir --no-deps stable-audio-tools
+
+# Step 2: Install all shared dependencies at compatible versions
+RUN pip install --no-cache-dir \
+    "transformers>=4.50" "accelerate>=1.5" bitsandbytes \
+    huggingface_hub sentencepiece protobuf \
+    av encodec git+https://github.com/facebookresearch/flashy.git \
+    num2words spacy demucs \
+    einops lameenc ema-pytorch laion-clap \
+    soundfile scipy numpy
+
+# Step 3: API server deps
+RUN pip install --no-cache-dir fastapi uvicorn[standard] python-multipart
 
 # Pipeline scripts + server
 COPY scripts/ /app/scripts/

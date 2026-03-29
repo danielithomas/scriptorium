@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
     runtime: nvidia
     ports:
-      - "${API_PORT:-8080}:8080"
+      - "${API_PORT:-8189}:8080"
     volumes:
       - ${DATA_PATH:-./data}:/data
       - ${MODELS_PATH:-./models}:/models
