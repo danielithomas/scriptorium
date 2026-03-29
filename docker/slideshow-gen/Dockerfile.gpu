@@ -10,6 +10,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # System packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 python3.12-venv python3-pip \
+    build-essential python3.12-dev \
     ffmpeg imagemagick \
     libsndfile1 libsox-dev sox \
     pkg-config libavformat-dev libavcodec-dev libavdevice-dev libavfilter-dev libavutil-dev libswscale-dev libswresample-dev \
