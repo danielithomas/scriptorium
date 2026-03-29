@@ -32,14 +32,14 @@ WORKDIR /app
 RUN python3.11 -m venv /app/venv
 ENV PATH=/app/venv/bin:$PATH
 
-# PyTorch CUDA build (CUDA 12.4)
+# PyTorch CUDA build (CUDA 12.8 — required for RTX 5080/5090 Blackwell SM 120)
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir torch torchvision torchaudio \
-    --index-url https://download.pytorch.org/whl/cu124
+    --index-url https://download.pytorch.org/whl/cu128
 
 # xformers prebuilt wheel (install before audiocraft to avoid source build)
 RUN pip install --no-cache-dir xformers \
-    --index-url https://download.pytorch.org/whl/cu124
+    --index-url https://download.pytorch.org/whl/cu128
 
 # Core AI libraries
 # audiocraft installed --no-deps to skip strict xformers<0.0.23 and spacy==3.5.2 pins
