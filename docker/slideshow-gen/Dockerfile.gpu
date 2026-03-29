@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 python3.12-venv python3-pip \
     ffmpeg imagemagick \
     libsndfile1 libsox-dev sox \
+    pkg-config libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
     git curl wget ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
