@@ -19,8 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN ln -sf /usr/bin/python3.12 /usr/bin/python3 && \
     ln -sf /usr/bin/python3 /usr/bin/python
 
-# Create non-root user
-RUN useradd -m -u 1000 slideuser
+# Create non-root user (UID 1000 may exist in base image)
+RUN useradd -m slideuser 2>/dev/null || useradd -m -u 1001 slideuser 2>/dev/null || true
 WORKDIR /app
 
 # Python venv
