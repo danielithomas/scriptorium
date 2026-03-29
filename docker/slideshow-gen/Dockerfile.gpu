@@ -42,15 +42,20 @@ RUN pip install --no-cache-dir xformers \
     --index-url https://download.pytorch.org/whl/cu128
 
 # Core AI libraries
-# audiocraft installed --no-deps to skip strict xformers<0.0.23 and spacy==3.5.2 pins
+# Install order matters for cu128 compatibility:
+# 1. transformers + accelerate first (need recent versions for LlamaModel + PyTorch 2.10)
+# 2. audiocraft --no-deps to skip strict xformers<0.0.23 and spacy==3.5.2 pins
+# 3. chatterbox-tts + IndicF5 last (depend on transformers)
 # flashy from GitHub (PyPI tarball is broken — missing requirements.txt)
-RUN pip install --no-cache-dir --no-deps audiocraft && \
+RUN pip install --no-cache-dir \
+    "transformers>=4.50" "accelerate>=1.5" bitsandbytes \
+    huggingface_hub sentencepiece protobuf && \
+    pip install --no-cache-dir --no-deps audiocraft && \
     pip install --no-cache-dir \
-    av encodec git+https://github.com/facebookresearch/flashy.git huggingface_hub num2words spacy demucs \
-    einops lameenc sentencepiece protobuf \
+    av encodec git+https://github.com/facebookresearch/flashy.git num2words spacy demucs \
+    einops lameenc \
     chatterbox-tts \
     git+https://github.com/ai4bharat/IndicF5.git \
-    transformers accelerate bitsandbytes \
     soundfile scipy numpy && \
     pip install --no-cache-dir --no-deps stable-audio-tools && \
     pip install --no-cache-dir ema-pytorch laion-clap && \
