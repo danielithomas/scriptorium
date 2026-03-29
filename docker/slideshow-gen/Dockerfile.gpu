@@ -53,11 +53,13 @@ RUN pip install --no-cache-dir --no-deps audiocraft && \
     transformers accelerate bitsandbytes \
     soundfile scipy numpy && \
     pip install --no-cache-dir --no-deps stable-audio-tools && \
-    pip install --no-cache-dir ema-pytorch laion-clap
+    pip install --no-cache-dir ema-pytorch laion-clap && \
+    pip install --no-cache-dir fastapi uvicorn[standard] python-multipart
 
-# Pipeline scripts
+# Pipeline scripts + server
 COPY scripts/ /app/scripts/
 COPY entrypoint.sh /app/entrypoint.sh
+COPY server.py /app/server.py
 RUN chmod +x /app/entrypoint.sh
 
 # Model cache directory (mount as volume)
@@ -72,8 +74,15 @@ ENV FFMPEG_ENCODER=h264_nvenc
 ENV MUSIC_VOLUME=0.2
 ENV NUM_THREADS=24
 
+# Job data directory
+ENV JOBS_DIR=/data/jobs
+
 # Volumes
-VOLUME ["/input", "/output", "/models"]
+VOLUME ["/input", "/output", "/models", "/data"]
+
+EXPOSE 8080
 
 USER slideuser
-ENTRYPOINT ["/app/entrypoint.sh"]
+
+# Default: run as API server. Override with entrypoint.sh for CLI mode.
+CMD ["python3", "/app/server.py"]
