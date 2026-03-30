@@ -52,10 +52,33 @@ def main():
     # Load actual durations from narration stage
     slide_durations = load_durations(working_dir, script)
 
-    # Build narration segments with correct timing offsets
-    segments = []
-    offset = 0.0
+    # Calculate intro/outro durations for total audio timeline
+    intro_dur = 0.0
+    if script.get("intro"):
+        intro_dur = script["intro"].get("duration", 3)
 
+    outro_dur = 0.0
+    if script.get("outro"):
+        outro_dur = script["outro"].get("duration", 3)
+
+    # Music fade-out duration (seconds before end of video)
+    music_fade_out = script.get("music_fade_out", 0)
+
+    # Crossfade overlap: each crossfade removes this many seconds from total
+    crossfade_dur = script.get("crossfade_duration", 0.5) if script.get("crossfade", True) else 0
+    num_content_slides = len(script.get("slides", []))
+    # Number of crossfade transitions: between intro→slide1, slide1→slide2, ..., slideN→outro
+    num_segments = num_content_slides + (1 if intro_dur > 0 else 0) + (1 if outro_dur > 0 else 0)
+    num_transitions = max(0, num_segments - 1) if crossfade_dur > 0 else 0
+
+    # Build narration segments with correct timing offsets
+    # Narration starts after the intro (minus crossfade overlap into first slide)
+    segments = []
+    narr_offset = intro_dur - (crossfade_dur if intro_dur > 0 else 0)
+    if narr_offset < 0:
+        narr_offset = 0
+
+    content_duration = 0.0
     for sd in slide_durations:
         sid = sd["slide_id"]
         dur = sd["duration"]
@@ -64,13 +87,20 @@ def main():
         if os.path.exists(narr_file):
             segments.append({
                 "file": narr_file,
-                "offset": offset,
+                "offset": narr_offset,
                 "slide_duration": dur,
             })
 
-        offset += dur
+        narr_offset += dur
+        content_duration += dur
 
-    total_duration = offset
+    # Total audio duration = intro + content + outro - crossfade overlaps
+    total_duration = intro_dur + content_duration + outro_dur - (num_transitions * crossfade_dur)
+    if total_duration < 0:
+        total_duration = content_duration  # safety fallback
+
+    print(f"  Timeline: intro={intro_dur}s + content={content_duration:.1f}s + outro={outro_dur}s"
+          f" - {num_transitions}×{crossfade_dur}s xfade = {total_duration:.1f}s total")
 
     if not segments and no_music:
         print("  No narration or music — skipping mix stage")
@@ -97,12 +127,22 @@ def main():
     if not no_music:
         music_idx = len(segments)
         inputs.extend(["-i", music_path])
-        filter_parts.append(
+
+        # Music plays for total_duration, with optional fade-out at the end
+        music_filter = (
             f"[{music_idx}]atrim=0:{total_duration},asetpts=PTS-STARTPTS,"
-            f"volume={volume}[bgmusic]"
+            f"volume={volume}"
         )
+        if music_fade_out > 0:
+            fade_start = max(0, total_duration - music_fade_out)
+            music_filter += f",afade=t=out:st={fade_start:.3f}:d={music_fade_out:.3f}"
+            print(f"  Music fade-out: {music_fade_out}s starting at {fade_start:.1f}s")
+
+        music_filter += "[bgmusic]"
+        filter_parts.append(music_filter)
+
         filter_parts.append(
-            "[narration][bgmusic]amix=inputs=2:duration=first:dropout_transition=2[out]"
+            "[narration][bgmusic]amix=inputs=2:duration=longest:dropout_transition=2[out]"
         )
         output_label = "[out]"
     else:
