@@ -69,12 +69,13 @@ RUN pip install --no-cache-dir \
 # descript-audio-codec pulls descript-audiotools which pins protobuf<3.20,
 # conflicting with onnx>=1.16. Install descript-audio-codec --no-deps.
 RUN pip install --no-cache-dir --no-deps descript-audio-codec==1.0.0 && \
+    pip install --no-cache-dir --no-deps descript-audiotools && \
     pip install --no-cache-dir \
     ema-pytorch laion-clap==1.1.4 "onnx>=1.16" \
     alias-free-torch==0.0.6 auraloss==0.4.0 \
     einops-exts k-diffusion==0.1.1 local-attention==1.8.6 \
     prefigure==0.0.9 v-diffusion-pytorch==0.0.2 vector-quantize-pytorch \
-    descript-audiotools
+    randomname markdown2 argbind rich
 
 # ── Layer 8: IndicF5 transitive deps ─────────────
 RUN pip install --no-cache-dir \
