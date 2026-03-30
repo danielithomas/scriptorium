@@ -1,10 +1,34 @@
 #!/usr/bin/env python3
-"""Stage 4: Audio Mixing — Combine per-slide narration with background music."""
+"""Stage 4: Audio Mixing — Combine per-slide narration with background music.
+
+Reads durations.json from narration stage for actual slide timings.
+"""
 
 import json
 import os
 import subprocess
 import sys
+
+
+def load_durations(working_dir: str, script: dict) -> list[dict]:
+    """Load slide durations from narration manifest or fall back to script."""
+    manifest_path = os.path.join(working_dir, "narration", "durations.json")
+    if os.path.exists(manifest_path):
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+        print(f"  Using narration-driven durations (total: {manifest['total_duration']:.1f}s)")
+        return manifest["slides"]
+
+    # Fallback: build from script
+    default_dur = script.get("default_slide_duration", 5)
+    return [
+        {
+            "slide_id": s["id"],
+            "duration": s.get("duration") or default_dur,
+            "narration_file": f"narration_{s['id']:04d}.wav",
+        }
+        for s in script["slides"]
+    ]
 
 
 def main():
@@ -23,24 +47,25 @@ def main():
     music_path = os.path.join(working_dir, "music.wav")
     output_path = os.path.join(working_dir, "mixed.wav")
 
-    default_dur = script.get("default_slide_duration", 5)
     no_music = not os.path.exists(music_path)
 
-    # Build a concatenated narration track with silence gaps
-    # First, calculate timing for each slide
+    # Load actual durations from narration stage
+    slide_durations = load_durations(working_dir, script)
+
+    # Build narration segments with correct timing offsets
     segments = []
     offset = 0.0
 
-    for slide in script["slides"]:
-        sid = slide["id"]
-        dur = slide.get("duration") or default_dur
+    for sd in slide_durations:
+        sid = sd["slide_id"]
+        dur = sd["duration"]
         narr_file = os.path.join(narration_dir, f"narration_{sid:04d}.wav")
 
         if os.path.exists(narr_file):
             segments.append({
                 "file": narr_file,
                 "offset": offset,
-                "slide_duration": dur
+                "slide_duration": dur,
             })
 
         offset += dur
@@ -58,7 +83,6 @@ def main():
     # Add narration files as inputs
     for i, seg in enumerate(segments):
         inputs.extend(["-i", seg["file"]])
-        # Delay each narration to its slide offset
         delay_ms = int(seg["offset"] * 1000)
         filter_parts.append(f"[{i}]adelay={delay_ms}|{delay_ms}[narr{i}]")
 
@@ -67,14 +91,12 @@ def main():
         narr_labels = "".join(f"[narr{i}]" for i in range(len(segments)))
         filter_parts.append(f"{narr_labels}amix=inputs={len(segments)}:duration=longest[narration]")
     else:
-        # Generate silence for narration track
         filter_parts.append(f"anullsrc=r=24000:cl=mono,atrim=0:{total_duration}[narration]")
 
     # Add music and mix with narration
     if not no_music:
         music_idx = len(segments)
         inputs.extend(["-i", music_path])
-        # Trim music to total duration and set volume
         filter_parts.append(
             f"[{music_idx}]atrim=0:{total_duration},asetpts=PTS-STARTPTS,"
             f"volume={volume}[bgmusic]"
@@ -95,7 +117,7 @@ def main():
         "-map", output_label,
         "-ar", "24000",
         "-ac", "1",
-        output_path
+        output_path,
     ]
 
     print(f"  Mixing {len(segments)} narration tracks" +

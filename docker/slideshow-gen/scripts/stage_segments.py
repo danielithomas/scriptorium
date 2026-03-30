@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Stage 5: Video Segments — Create per-slide MP4 segments with optional text overlays."""
+"""Stage 5: Video Segments — Create per-slide MP4 segments with optional text overlays.
+
+Reads durations.json from narration stage for actual slide timings.
+"""
 
 import json
 import os
@@ -14,7 +17,6 @@ def build_overlay_filter(overlay: dict, width: int, height: int) -> str:
     font_color = overlay.get("font_color", "white")
     position = overlay.get("position", "bottom-centre")
 
-    # Position mapping
     positions = {
         "top-left":      "x=40:y=40",
         "top-centre":    "x=(w-text_w)/2:y=40",
@@ -36,6 +38,19 @@ def build_overlay_filter(overlay: dict, width: int, height: int) -> str:
     )
 
 
+def load_durations(working_dir: str, script: dict) -> dict:
+    """Load slide durations from narration manifest. Returns {slide_id: duration}."""
+    manifest_path = os.path.join(working_dir, "narration", "durations.json")
+    if os.path.exists(manifest_path):
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+        return {s["slide_id"]: s["duration"] for s in manifest["slides"]}
+
+    # Fallback
+    default_dur = script.get("default_slide_duration", 5)
+    return {s["id"]: s.get("duration") or default_dur for s in script["slides"]}
+
+
 def main():
     script_path = sys.argv[1]
     working_dir = sys.argv[2]
@@ -44,35 +59,54 @@ def main():
         script = json.load(f)
 
     slides_dir = os.path.join(working_dir, "slides")
-    narration_dir = os.path.join(working_dir, "narration")
     segments_dir = os.path.join(working_dir, "segments")
     os.makedirs(segments_dir, exist_ok=True)
 
     resolution = script.get("resolution", "1920x1080")
     width, height = [int(x) for x in resolution.split("x")]
-    default_dur = script.get("default_slide_duration", 5)
     encoder = os.environ.get("FFMPEG_ENCODER", "libx264")
+
+    # Load narration-driven durations
+    durations = load_durations(working_dir, script)
 
     for slide in script["slides"]:
         sid = slide["id"]
-        dur = slide.get("duration") or default_dur
-        image = os.path.join(slides_dir, f"slide_{sid:04d}.png")
+        is_video = slide.get("type") == "video"
+        dur = durations.get(sid, script.get("default_slide_duration", 6))
         output = os.path.join(segments_dir, f"segment_{sid:04d}.mp4")
 
-        # Check if we have narration — if so, use its duration as minimum
-        narr_file = os.path.join(narration_dir, f"narration_{sid:04d}.wav")
-        has_narration = os.path.exists(narr_file)
+        if is_video:
+            # Video slides: use original video file, fixed duration
+            video_file = os.path.join(os.path.dirname(script_path), "videos", slide.get("video", ""))
+            if os.path.exists(video_file):
+                # Re-encode to match resolution and codec
+                cmd = [
+                    "ffmpeg", "-y",
+                    "-i", video_file,
+                    "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                           f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p",
+                    "-c:v", encoder, "-an",
+                    "-pix_fmt", "yuv420p",
+                ]
+                if encoder == "h264_nvenc":
+                    cmd.extend(["-preset", "p4", "-rc", "vbr", "-cq", "23"])
+                else:
+                    cmd.extend(["-preset", "medium", "-crf", "23"])
+                cmd.append(output)
+                subprocess.run(cmd, check=True, capture_output=True)
+                print(f"  ✓ Slide {sid} (video): {dur}s → {os.path.basename(output)}")
+            else:
+                print(f"  WARNING: Video file not found for slide {sid}: {video_file}")
+            continue
 
-        # Build FFmpeg command
+        # Image slides
+        image = os.path.join(slides_dir, f"slide_{sid:04d}.png")
+
         cmd = ["ffmpeg", "-y"]
-
-        # Input: loop the still image
         cmd.extend(["-loop", "1", "-i", image])
 
-        # Video filter
-        vf_parts = [f"fps=30,format=yuv420p"]
+        vf_parts = ["fps=30,format=yuv420p"]
 
-        # Add text overlay if configured
         overlay = slide.get("overlay")
         if overlay and overlay.get("text"):
             vf_parts.append(build_overlay_filter(overlay, width, height))
@@ -86,7 +120,6 @@ def main():
             "-pix_fmt", "yuv420p",
         ])
 
-        # Encoder-specific settings
         if encoder == "h264_nvenc":
             cmd.extend(["-preset", "p4", "-rc", "vbr", "-cq", "23"])
         else:

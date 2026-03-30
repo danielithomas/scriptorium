@@ -17,8 +17,20 @@ def get_device():
     return os.environ.get("DEVICE", "cpu")
 
 
-def get_total_duration(script: dict) -> float:
-    """Calculate total video duration from script."""
+def get_total_duration(script: dict, script_path: str) -> float:
+    """Get total video duration from durations.json manifest (narration-driven).
+    Falls back to script durations if manifest not found."""
+    # Check for durations manifest from narration stage
+    narration_dir = os.path.join(os.path.dirname(script_path), "..", "narration")
+    manifest_path = os.path.join(narration_dir, "durations.json")
+    if os.path.exists(manifest_path):
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+        total = manifest.get("total_duration", 0)
+        print(f"  Using narration-driven duration: {total:.1f}s (from durations.json)")
+        return total
+
+    # Fallback to script durations
     default_dur = script.get("default_slide_duration", 5)
     total = 0.0
     for slide in script["slides"]:
@@ -55,7 +67,7 @@ def main():
 
     # Determine target duration
     if not target_duration:
-        target_duration = get_total_duration(script)
+        target_duration = get_total_duration(script, script_path)
 
     print(f"  Prompt: {prompt[:80]}{'...' if len(prompt) > 80 else ''}")
     print(f"  Target duration: {target_duration:.1f}s")

@@ -42,8 +42,8 @@ log = logging.getLogger("slideshow")
 # ── Job State ──────────────────────────────────────────────────
 
 STAGES = [
-    "Image Preparation",
     "Narration Synthesis",
+    "Image Preparation",
     "Music Generation",
     "Audio Mixing",
     "Video Segments + Overlays",
@@ -132,15 +132,15 @@ def _run_pipeline(job_id: str):
     music_vol = env.get("MUSIC_VOLUME", "0.2")
 
     stages = [
-        # (stage_num, name, command_args)
-        (1, "Image Preparation", [
-            "python3", "/app/scripts/stage_images.py",
-            str(script_path), str(working_dir / "slides"),
-        ]),
-        (2, "Narration Synthesis", [
+        # Narration FIRST — determines actual slide durations
+        (1, "Narration Synthesis", [
             "python3", "/app/scripts/stage_narration.py",
             str(script_path), str(working_dir / "narration"),
         ] + (["--voice-ref=" + str(voice_ref)] if voice_ref.exists() else [])),
+        (2, "Image Preparation", [
+            "python3", "/app/scripts/stage_images.py",
+            str(script_path), str(working_dir / "slides"),
+        ]),
         (3, "Music Generation", [
             "python3", "/app/scripts/stage_music.py",
             str(script_path), str(working_dir / "music.wav"),

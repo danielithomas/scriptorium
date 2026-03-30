@@ -8,14 +8,22 @@ import sys
 import tempfile
 
 
-def generate_srt(script: dict, output_path: str):
-    """Generate SRT subtitle file from slide narrations."""
+def generate_srt(script: dict, output_path: str, working_dir: str):
+    """Generate SRT subtitle file from slide narrations using actual durations."""
+    # Try to load narration-driven durations
+    durations = {}
+    manifest_path = os.path.join(working_dir, "narration", "durations.json")
+    if os.path.exists(manifest_path):
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+        durations = {s["slide_id"]: s["duration"] for s in manifest["slides"]}
+
     default_dur = script.get("default_slide_duration", 5)
     offset = 0.0
     subs = []
 
     for i, slide in enumerate(script["slides"], 1):
-        dur = slide.get("duration") or default_dur
+        dur = durations.get(slide["id"], slide.get("duration") or default_dur)
         narration = slide.get("narration", "")
 
         if narration:
@@ -107,7 +115,7 @@ def main():
     # Generate subtitles if requested
     if subtitles:
         srt_path = output_path.rsplit(".", 1)[0] + ".srt"
-        generate_srt(script, srt_path)
+        generate_srt(script, srt_path, working_dir)
         print(f"  ✓ Subtitles: {srt_path}")
 
 
