@@ -22,7 +22,7 @@ services:
       - TTS_DEVICE=cpu
       - FFMPEG_ENCODER=libx264
       - NUM_THREADS=${NUM_THREADS:-12}
-      - MUSIC_VOLUME=${MUSIC_VOLUME:-0.2}
+      - MUSIC_VOLUME=${MUSIC_VOLUME:-0.12}
       - HF_TOKEN=${HF_TOKEN:-}
       - JOBS_DIR=/data/jobs
       - MAX_STORED_JOBS=${MAX_STORED_JOBS:-20}

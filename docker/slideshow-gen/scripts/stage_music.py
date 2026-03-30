@@ -20,15 +20,20 @@ def get_device():
 def get_total_duration(script: dict, script_path: str) -> float:
     """Get total video duration from durations.json manifest (narration-driven).
     Falls back to script durations if manifest not found."""
-    # Check for durations manifest from narration stage
-    narration_dir = os.path.join(os.path.dirname(script_path), "..", "narration")
-    manifest_path = os.path.join(narration_dir, "durations.json")
-    if os.path.exists(manifest_path):
-        with open(manifest_path) as f:
-            manifest = json.load(f)
-        total = manifest.get("total_duration", 0)
-        print(f"  Using narration-driven duration: {total:.1f}s (from durations.json)")
-        return total
+    # The output_path arg is like /working/music.wav — narration dir is a sibling
+    output_dir = os.path.dirname(sys.argv[2]) if len(sys.argv) > 2 else ""
+    candidates = [
+        os.path.join(output_dir, "narration", "durations.json"),  # working/narration/
+        os.path.join(os.path.dirname(script_path), "..", "narration", "durations.json"),
+    ]
+
+    for manifest_path in candidates:
+        if os.path.exists(manifest_path):
+            with open(manifest_path) as f:
+                manifest = json.load(f)
+            total = manifest.get("total_duration", 0)
+            print(f"  Using narration-driven duration: {total:.1f}s (from durations.json)")
+            return total
 
     # Fallback to script durations
     default_dur = script.get("default_slide_duration", 5)

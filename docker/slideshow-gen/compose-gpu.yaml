@@ -26,7 +26,7 @@ services:
       - TTS_DEVICE=cuda
       - FFMPEG_ENCODER=${FFMPEG_ENCODER:-h264_nvenc}
       - NUM_THREADS=${NUM_THREADS:-24}
-      - MUSIC_VOLUME=${MUSIC_VOLUME:-0.2}
+      - MUSIC_VOLUME=${MUSIC_VOLUME:-0.12}
       - HF_TOKEN=${HF_TOKEN:-}
       - JOBS_DIR=/data/jobs
       - MAX_STORED_JOBS=${MAX_STORED_JOBS:-20}
