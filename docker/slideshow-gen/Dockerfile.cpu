@@ -9,8 +9,13 @@ FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
 
 # ── Layer 1: System packages ────────────────────
+# Use Python 3.11 (same as GPU Dockerfile) to avoid pkgutil.ImpImporter
+# removal in 3.12 that breaks older numpy/setuptools builds
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.12 python3.12-venv python3-pip \
+    software-properties-common \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 python3.11-venv python3.11-dev python3-pip \
     build-essential cmake \
     ffmpeg imagemagick \
     libsndfile1 libsox-dev sox \
@@ -18,13 +23,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN ln -sf /usr/bin/python3.12 /usr/bin/python3 && \
+RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
     ln -sf /usr/bin/python3 /usr/bin/python
 
 RUN useradd -m slideuser 2>/dev/null || useradd -m -u 1001 slideuser 2>/dev/null || true
 WORKDIR /app
 
-RUN python3 -m venv /app/venv
+RUN python3.11 -m venv /app/venv
 ENV PATH=/app/venv/bin:$PATH
 RUN pip install --no-cache-dir --upgrade pip
 
