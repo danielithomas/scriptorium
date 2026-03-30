@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN ln -sf /usr/bin/python3.12 /usr/bin/python3 && \
     ln -sf /usr/bin/python3 /usr/bin/python
 
-RUN useradd -m -u 1000 slideuser
+RUN useradd -m slideuser 2>/dev/null || useradd -m -u 1001 slideuser 2>/dev/null || true
 WORKDIR /app
 
 RUN python3 -m venv /app/venv
