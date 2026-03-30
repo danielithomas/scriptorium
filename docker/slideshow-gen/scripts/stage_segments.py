@@ -51,6 +51,31 @@ def load_durations(working_dir: str, script: dict) -> dict:
     return {s["id"]: s.get("duration") or default_dur for s in script["slides"]}
 
 
+def generate_branded_slide(image_path: str, output_path: str, duration: float,
+                           width: int, height: int, encoder: str,
+                           background: str = "white"):
+    """Generate a branded intro/outro segment from a logo image on a solid background."""
+    # Create the branded frame: logo centered on background
+    cmd = [
+        "ffmpeg", "-y",
+        "-f", "lavfi", "-i", f"color=c={background}:s={width}x{height}:d={duration}:r=30",
+        "-i", image_path,
+        "-filter_complex",
+        f"[1:v]scale='min({int(width*0.4)},iw)':'min({int(height*0.4)},ih)'"
+        f":force_original_aspect_ratio=decrease[logo];"
+        f"[0:v][logo]overlay=(W-w)/2:(H-h)/2:format=auto",
+        "-c:v", encoder,
+        "-t", str(duration),
+        "-pix_fmt", "yuv420p",
+    ]
+    if encoder == "h264_nvenc":
+        cmd.extend(["-preset", "p4", "-rc", "vbr", "-cq", "23"])
+    else:
+        cmd.extend(["-preset", "medium", "-crf", "23"])
+    cmd.append(output_path)
+    subprocess.run(cmd, check=True, capture_output=True)
+
+
 def main():
     script_path = sys.argv[1]
     working_dir = sys.argv[2]
@@ -65,9 +90,26 @@ def main():
     resolution = script.get("resolution", "1920x1080")
     width, height = [int(x) for x in resolution.split("x")]
     encoder = os.environ.get("FFMPEG_ENCODER", "libx264")
+    input_dir = os.path.dirname(script_path)
 
     # Load narration-driven durations
     durations = load_durations(working_dir, script)
+
+    # ── Intro slide (if configured) ──────────────
+    intro = script.get("intro")
+    if intro:
+        logo_path = os.path.join(input_dir, "images", intro.get("image", "logo.png"))
+        if not os.path.exists(logo_path):
+            logo_path = os.path.join(input_dir, intro.get("image", "logo.png"))
+        if os.path.exists(logo_path):
+            intro_dur = intro.get("duration", 3)
+            intro_bg = intro.get("background", "white")
+            intro_output = os.path.join(segments_dir, "segment_0000.mp4")
+            generate_branded_slide(logo_path, intro_output, intro_dur,
+                                   width, height, encoder, intro_bg)
+            print(f"  ✓ Intro: {intro_dur}s, {intro_bg} background → segment_0000.mp4")
+        else:
+            print(f"  WARNING: Intro logo not found: {logo_path}")
 
     for slide in script["slides"]:
         sid = slide["id"]
@@ -131,7 +173,25 @@ def main():
         overlay_note = " +overlay" if (overlay and overlay.get("text")) else ""
         print(f"  ✓ Slide {sid}: {dur}s{overlay_note} → {os.path.basename(output)}")
 
-    print(f"  Generated {len(script['slides'])} video segments")
+    # ── Outro slide (if configured) ──────────────
+    outro = script.get("outro")
+    if outro:
+        logo_path = os.path.join(input_dir, "images", outro.get("image", "logo.png"))
+        if not os.path.exists(logo_path):
+            logo_path = os.path.join(input_dir, outro.get("image", "logo.png"))
+        if os.path.exists(logo_path):
+            outro_dur = outro.get("duration", 3)
+            outro_bg = outro.get("background", "white")
+            outro_id = 9999
+            outro_output = os.path.join(segments_dir, f"segment_{outro_id:04d}.mp4")
+            generate_branded_slide(logo_path, outro_output, outro_dur,
+                                   width, height, encoder, outro_bg)
+            print(f"  ✓ Outro: {outro_dur}s, {outro_bg} background → segment_{outro_id:04d}.mp4")
+        else:
+            print(f"  WARNING: Outro logo not found: {logo_path}")
+
+    total_segments = len(script["slides"]) + (1 if intro else 0) + (1 if outro else 0)
+    print(f"  Generated {total_segments} video segments")
 
 
 if __name__ == "__main__":

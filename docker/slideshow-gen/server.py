@@ -285,6 +285,7 @@ async def generate(
     script: UploadFile = File(..., description="script.json file"),
     images: list[UploadFile] = File(default=[], description="Slide image files"),
     voice_ref: Optional[UploadFile] = File(default=None, description="Voice reference WAV"),
+    logo: Optional[UploadFile] = File(default=None, description="Logo image for intro/outro slides"),
     music_prompt: Optional[str] = Form(default=None, description="Music generation prompt"),
     no_music: bool = Form(default=False, description="Skip music generation"),
     no_narration: bool = Form(default=False, description="Skip TTS narration"),
@@ -314,6 +315,19 @@ async def generate(
     if voice_ref:
         voice_content = await voice_ref.read()
         (input_dir / "voice_ref.wav").write_bytes(voice_content)
+
+    # Save logo for intro/outro
+    if logo:
+        logo_content = await logo.read()
+        logo_filename = logo.filename or "logo.png"
+        (images_dir / logo_filename).write_bytes(logo_content)
+        # Auto-add intro/outro to script if not already present
+        if "intro" not in script_data:
+            script_data["intro"] = {"image": logo_filename, "duration": 3, "background": "white"}
+        if "outro" not in script_data:
+            script_data["outro"] = {"image": logo_filename, "duration": 3, "background": "white"}
+        # Re-write script with intro/outro added
+        (input_dir / "script.json").write_text(json.dumps(script_data, indent=2))
 
     # Save music prompt
     if music_prompt:

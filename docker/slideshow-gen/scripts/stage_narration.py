@@ -192,9 +192,17 @@ def main():
 
     total_duration = sum(t["duration"] for t in slide_timings)
 
+    # Add intro/outro durations
+    intro_dur = script.get("intro", {}).get("duration", 0)
+    outro_dur = script.get("outro", {}).get("duration", 0)
+    total_with_bookends = total_duration + intro_dur + outro_dur
+
     # Write durations manifest
     manifest = {
-        "total_duration": round(total_duration, 2),
+        "total_duration": round(total_with_bookends, 2),
+        "content_duration": round(total_duration, 2),
+        "intro_duration": intro_dur,
+        "outro_duration": outro_dur,
         "default_slide_duration": default_dur,
         "padding_seconds": PADDING_SECONDS,
         "slides": slide_timings,
