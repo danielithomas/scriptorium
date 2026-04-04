@@ -2,64 +2,108 @@
 # Slideshow Generator — CUDA Inference
 # Target: NVIDIA RTX 5080 / similar CUDA-capable GPUs
 # Requires: nvidia-container-toolkit on host
+#
+# Build layers are ordered by change frequency (least → most).
+# Each pip install is a separate layer for fast rebuilds.
 # ─────────────────────────────────────────────────
 
 FROM nvidia/cuda:13.2.0-cudnn-runtime-ubuntu24.04
 ARG DEBIAN_FRONTEND=noninteractive
 
-# System packages
+# ── Layer 1: System packages ────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.12 python3.12-venv python3-pip \
+    software-properties-common \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 python3.11-venv python3.11-dev python3-pip \
+    build-essential cmake \
     ffmpeg imagemagick \
     libsndfile1 libsox-dev sox \
+    pkg-config libavformat-dev libavcodec-dev libavdevice-dev \
+    libavfilter-dev libavutil-dev libswscale-dev libswresample-dev \
     git curl wget ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN ln -sf /usr/bin/python3.12 /usr/bin/python3 && \
+RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
     ln -sf /usr/bin/python3 /usr/bin/python
 
-# Create non-root user (UID 1000 may exist in base image)
 RUN useradd -m slideuser 2>/dev/null || useradd -m -u 1001 slideuser 2>/dev/null || true
 WORKDIR /app
 
-# Python venv
-RUN python3.12 -m venv /app/venv
+RUN python3.11 -m venv /app/venv
 ENV PATH=/app/venv/bin:$PATH
+RUN pip install --no-cache-dir --upgrade pip
 
-# PyTorch CUDA build (CUDA 12.4)
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir torch torchvision torchaudio \
-    --index-url https://download.pytorch.org/whl/cu124
+# ── Layer 2: PyTorch + xformers (~2 GB, changes least) ──
+RUN pip install --no-cache-dir torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cu128
 
-# Core AI libraries
+RUN pip install --no-cache-dir xformers \
+    --index-url https://download.pytorch.org/whl/cu128
+
+# ── Layer 3: Core ML framework deps ─────────────
 RUN pip install --no-cache-dir \
-    audiocraft \
-    chatterbox-tts \
-    git+https://github.com/ai4bharat/IndicF5.git \
-    stable-audio-tools \
-    transformers accelerate bitsandbytes \
-    soundfile scipy numpy
+    "transformers>=4.50" "accelerate>=1.5" bitsandbytes \
+    huggingface_hub sentencepiece protobuf safetensors \
+    numpy scipy soundfile tqdm omegaconf "diffusers>=0.29"
 
-# Pipeline scripts
+# ── Layer 4: AI packages (--no-deps to prevent version conflicts) ──
+RUN pip install --no-cache-dir --no-deps audiocraft
+RUN pip install --no-cache-dir --no-deps chatterbox-tts
+RUN pip install --no-cache-dir --no-deps git+https://github.com/ai4bharat/IndicF5.git
+RUN pip install --no-cache-dir --no-deps stable-audio-tools
+
+# ── Layer 5: chatterbox-tts transitive deps ──────
+RUN pip install --no-cache-dir \
+    "resemble-perth>=1.0.0" librosa==0.11.0 pyloudnorm \
+    s3tokenizer conformer==0.3.2 pykakasi==2.3.0 spacy-pkuseg
+
+# ── Layer 6: audiocraft transitive deps ──────────
+RUN pip install --no-cache-dir \
+    av encodec git+https://github.com/facebookresearch/flashy.git \
+    num2words "spacy>=3.6.1" demucs einops lameenc \
+    hydra-core hydra_colorlog julius torchmetrics
+
+# ── Layer 7: stable-audio-tools transitive deps ──
+# descript-audio-codec pulls descript-audiotools which pins protobuf<3.20,
+# conflicting with onnx>=1.16. Install descript-audio-codec --no-deps.
+RUN pip install --no-cache-dir --no-deps descript-audio-codec==1.0.0 && \
+    pip install --no-cache-dir --no-deps descript-audiotools && \
+    pip install --no-cache-dir \
+    ema-pytorch laion-clap==1.1.4 "onnx>=1.16" \
+    alias-free-torch==0.0.6 auraloss==0.4.0 \
+    einops-exts k-diffusion==0.1.1 local-attention==1.8.6 \
+    prefigure==0.0.9 v-diffusion-pytorch==0.0.2 vector-quantize-pytorch \
+    randomname markdown2 argbind rich
+
+# ── Layer 8: IndicF5 transitive deps ─────────────
+RUN pip install --no-cache-dir \
+    cached_path click datasets jieba matplotlib pydub pypinyin \
+    torchdiffeq transformers_stream_generator vocos "x_transformers>=1.31.14"
+
+# ── Layer 9: API server deps (changes most often) ──
+RUN pip install --no-cache-dir fastapi "uvicorn[standard]" python-multipart
+
+# ── Layer 10: Application code ───────────────────
 COPY scripts/ /app/scripts/
 COPY entrypoint.sh /app/entrypoint.sh
+COPY server.py /app/server.py
 RUN chmod +x /app/entrypoint.sh
 
-# Model cache directory (mount as volume)
+# ── Environment ─────────────────────────────────
 ENV HF_HOME=/models
 ENV TORCH_HOME=/models/torch
-
-# Defaults for GPU
 ENV MUSICGEN_MODEL=facebook/musicgen-large
 ENV DEVICE=cuda
 ENV TTS_DEVICE=cuda
 ENV FFMPEG_ENCODER=h264_nvenc
-ENV MUSIC_VOLUME=0.2
+ENV MUSIC_VOLUME=0.12
 ENV NUM_THREADS=24
+ENV JOBS_DIR=/data/jobs
 
-# Volumes
-VOLUME ["/input", "/output", "/models"]
+VOLUME ["/input", "/output", "/models", "/data"]
+EXPOSE 8080
 
 USER slideuser
-ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["python3", "/app/server.py"]

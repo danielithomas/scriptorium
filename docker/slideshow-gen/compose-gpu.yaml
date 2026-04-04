@@ -1,4 +1,4 @@
-# Slideshow Generator — NVIDIA GPU variant
+# Slideshow Generator — NVIDIA GPU variant (API server)
 # Target: NVIDIA RTX GPU hosts (e.g., RTX 5080)
 # Requires: nvidia-container-toolkit on host
 
@@ -8,11 +8,16 @@ services:
       context: .
       dockerfile: Dockerfile.gpu
     container_name: slideshow-gpu
+    restart: unless-stopped
     runtime: nvidia
+    ports:
+      - "${API_PORT:-8189}:8080"
     volumes:
+      - ${DATA_PATH:-./data}:/data
+      - ${MODELS_PATH:-./models}:/models
+      # Legacy CLI mode volumes (optional)
       - ${INPUT_PATH:-./input}:/input:ro
       - ${OUTPUT_PATH:-./output}:/output
-      - ${MODELS_PATH:-./models}:/models
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
@@ -21,8 +26,10 @@ services:
       - TTS_DEVICE=cuda
       - FFMPEG_ENCODER=${FFMPEG_ENCODER:-h264_nvenc}
       - NUM_THREADS=${NUM_THREADS:-24}
-      - MUSIC_VOLUME=${MUSIC_VOLUME:-0.2}
+      - MUSIC_VOLUME=${MUSIC_VOLUME:-0.12}
       - HF_TOKEN=${HF_TOKEN:-}
+      - JOBS_DIR=/data/jobs
+      - MAX_STORED_JOBS=${MAX_STORED_JOBS:-20}
     deploy:
       resources:
         reservations:
@@ -30,4 +37,9 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    command: ["--input=/input/script.json", "--output=/output/final.mp4"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

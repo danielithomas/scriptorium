@@ -1,5 +1,5 @@
-# Slideshow Generator — CPU variant
-# Target: Intel CPU-only hosts (e.g., Core Ultra 185H with iGPU)
+# Slideshow Generator — CPU variant (API server)
+# Target: Intel Core Ultra 9 185H / similar CPU-only hosts
 
 services:
   slideshow-cpu:
@@ -7,22 +7,28 @@ services:
       context: .
       dockerfile: Dockerfile.cpu
     container_name: slideshow-cpu
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8189}:8080"
     volumes:
+      - ${DATA_PATH:-./data}:/data
+      - ${MODELS_PATH:-./models}:/models
+      # Legacy CLI mode volumes (optional)
       - ${INPUT_PATH:-./input}:/input:ro
       - ${OUTPUT_PATH:-./output}:/output
-      - ${MODELS_PATH:-./models}:/models
     environment:
       - MUSICGEN_MODEL=${MUSICGEN_MODEL:-facebook/musicgen-small}
       - DEVICE=cpu
       - TTS_DEVICE=cpu
       - FFMPEG_ENCODER=libx264
       - NUM_THREADS=${NUM_THREADS:-12}
-      - MUSIC_VOLUME=${MUSIC_VOLUME:-0.2}
+      - MUSIC_VOLUME=${MUSIC_VOLUME:-0.12}
       - HF_TOKEN=${HF_TOKEN:-}
-    deploy:
-      resources:
-        limits:
-          memory: 24G
-        reservations:
-          memory: 8G
-    command: ["--input=/input/script.json", "--output=/output/final.mp4"]
+      - JOBS_DIR=/data/jobs
+      - MAX_STORED_JOBS=${MAX_STORED_JOBS:-20}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
