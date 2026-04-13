@@ -71,19 +71,19 @@ export NO_MUSIC NO_NARRATION SUBTITLES
 
 TOTAL_START=$(date +%s)
 
-# ── Stage 1: Image Preparation ──────────────────
-echo "── Stage 1/6: Image Preparation ──"
-python3 /app/scripts/stage_images.py "$INPUT" "$WORKING/slides"
-
-# ── Stage 2: Narration Synthesis ─────────────────
+# ── Stage 1: Narration Synthesis (FIRST — drives slide timings) ──
 if [[ "$NO_NARRATION" == "false" ]]; then
-    echo "── Stage 2/6: Narration Synthesis ──"
+    echo "── Stage 1/6: Narration Synthesis ──"
     VOICE_ARG=""
     [[ -n "$VOICE_REF" ]] && VOICE_ARG="--voice-ref=$VOICE_REF"
     python3 /app/scripts/stage_narration.py "$INPUT" "$WORKING/narration" $VOICE_ARG
 else
-    echo "── Stage 2/6: Narration Synthesis [SKIPPED] ──"
+    echo "── Stage 1/6: Narration Synthesis [SKIPPED] ──"
 fi
+
+# ── Stage 2: Image Preparation ──────────────────
+echo "── Stage 2/6: Image Preparation ──"
+python3 /app/scripts/stage_images.py "$INPUT" "$WORKING/slides"
 
 # ── Stage 3: Music Generation ────────────────────
 if [[ "$NO_MUSIC" == "false" ]]; then

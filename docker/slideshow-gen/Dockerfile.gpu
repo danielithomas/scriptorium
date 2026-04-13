@@ -66,11 +66,16 @@ RUN pip install --no-cache-dir \
     hydra-core hydra_colorlog julius torchmetrics
 
 # ── Layer 7: stable-audio-tools transitive deps ──
-RUN pip install --no-cache-dir \
+# descript-audio-codec pulls descript-audiotools which pins protobuf<3.20,
+# conflicting with onnx>=1.16. Install descript-audio-codec --no-deps.
+RUN pip install --no-cache-dir --no-deps descript-audio-codec==1.0.0 && \
+    pip install --no-cache-dir --no-deps descript-audiotools && \
+    pip install --no-cache-dir \
     ema-pytorch laion-clap==1.1.4 "onnx>=1.16" \
-    alias-free-torch==0.0.6 auraloss==0.4.0 descript-audio-codec==1.0.0 \
+    alias-free-torch==0.0.6 auraloss==0.4.0 \
     einops-exts k-diffusion==0.1.1 local-attention==1.8.6 \
-    prefigure==0.0.9 v-diffusion-pytorch==0.0.2 vector-quantize-pytorch
+    prefigure==0.0.9 v-diffusion-pytorch==0.0.2 vector-quantize-pytorch \
+    randomname markdown2 argbind rich
 
 # ── Layer 8: IndicF5 transitive deps ─────────────
 RUN pip install --no-cache-dir \
@@ -93,7 +98,7 @@ ENV MUSICGEN_MODEL=facebook/musicgen-large
 ENV DEVICE=cuda
 ENV TTS_DEVICE=cuda
 ENV FFMPEG_ENCODER=h264_nvenc
-ENV MUSIC_VOLUME=0.2
+ENV MUSIC_VOLUME=0.12
 ENV NUM_THREADS=24
 ENV JOBS_DIR=/data/jobs
 

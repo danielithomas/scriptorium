@@ -9,8 +9,13 @@ FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
 
 # ── Layer 1: System packages ────────────────────
+# Use Python 3.11 (same as GPU Dockerfile) to avoid pkgutil.ImpImporter
+# removal in 3.12 that breaks older numpy/setuptools builds
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.12 python3.12-venv python3-pip \
+    software-properties-common \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 python3.11-venv python3.11-dev python3-pip \
     build-essential cmake \
     ffmpeg imagemagick \
     libsndfile1 libsox-dev sox \
@@ -18,19 +23,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN ln -sf /usr/bin/python3.12 /usr/bin/python3 && \
+RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
     ln -sf /usr/bin/python3 /usr/bin/python
 
-RUN useradd -m -u 1000 slideuser
+RUN useradd -m slideuser 2>/dev/null || useradd -m -u 1001 slideuser 2>/dev/null || true
 WORKDIR /app
 
-RUN python3 -m venv /app/venv
+RUN python3.11 -m venv /app/venv
 ENV PATH=/app/venv/bin:$PATH
 RUN pip install --no-cache-dir --upgrade pip
 
 # ── Layer 2: PyTorch CPU (~800 MB) ──────────────
 RUN pip install --no-cache-dir torch torchvision torchaudio \
     --index-url https://download.pytorch.org/whl/cpu
+
+# xformers (required by audiocraft even on CPU)
+RUN pip install --no-cache-dir xformers
 
 # ── Layer 3: Core ML framework deps ─────────────
 RUN pip install --no-cache-dir \
@@ -56,11 +64,16 @@ RUN pip install --no-cache-dir \
     hydra-core hydra_colorlog julius torchmetrics
 
 # ── Layer 7: stable-audio-tools transitive deps ──
-RUN pip install --no-cache-dir \
+# descript-audio-codec pulls descript-audiotools which pins protobuf<3.20,
+# conflicting with onnx>=1.16. Install descript-audio-codec --no-deps.
+RUN pip install --no-cache-dir --no-deps descript-audio-codec==1.0.0 && \
+    pip install --no-cache-dir --no-deps descript-audiotools && \
+    pip install --no-cache-dir \
     ema-pytorch laion-clap==1.1.4 "onnx>=1.16" \
-    alias-free-torch==0.0.6 auraloss==0.4.0 descript-audio-codec==1.0.0 \
+    alias-free-torch==0.0.6 auraloss==0.4.0 \
     einops-exts k-diffusion==0.1.1 local-attention==1.8.6 \
-    prefigure==0.0.9 v-diffusion-pytorch==0.0.2 vector-quantize-pytorch
+    prefigure==0.0.9 v-diffusion-pytorch==0.0.2 vector-quantize-pytorch \
+    randomname markdown2 argbind rich
 
 # ── Layer 8: IndicF5 transitive deps ─────────────
 RUN pip install --no-cache-dir \
@@ -83,7 +96,7 @@ ENV MUSICGEN_MODEL=facebook/musicgen-small
 ENV DEVICE=cpu
 ENV TTS_DEVICE=cpu
 ENV FFMPEG_ENCODER=libx264
-ENV MUSIC_VOLUME=0.2
+ENV MUSIC_VOLUME=0.12
 ENV NUM_THREADS=12
 ENV JOBS_DIR=/data/jobs
 
