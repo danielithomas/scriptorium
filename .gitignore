@@ -137,6 +137,9 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+
+# Docker stack runtime data (models, databases, user data)
+**/data/
 .venv
 env/
 venv/

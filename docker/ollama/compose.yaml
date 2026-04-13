@@ -9,3 +9,4 @@ services:
       - ${OLLAMA_DATA:-./data}:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
