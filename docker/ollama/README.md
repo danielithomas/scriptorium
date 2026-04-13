@@ -43,6 +43,7 @@ curl http://localhost:11434/v1/chat/completions -d '{
 |----------|---------|-------------|
 | `OLLAMA_PORT` | `11434` | Host port for API |
 | `OLLAMA_DATA` | `./data` | Host path for model storage |
+| `OLLAMA_API_KEY` | *(none)* | API key for authenticating requests |
 
 ## Volumes
 
