@@ -274,8 +274,13 @@ value passed to docker compose.
 
     print_header("Summary")
     print(f"  Downloaded: {downloaded}    Skipped: {skipped}    Failed: {failed}")
-    print("\n  To run iopaint:")
-    print(f"    MODEL_DIR={MODEL_DIR} docker compose up -d")
+    # Echo back the configuration actually used — in shared-cache mode MODEL_DIR
+    # is unset and printing it would name a directory nothing was written to.
+    print("\n  To run iopaint with the caches just populated:")
+    if os.environ.get("HF_CACHE_DIR") or os.environ.get("TORCH_CACHE_DIR"):
+        print(f"    HF_CACHE_DIR={HF_CACHE} TORCH_CACHE_DIR={TORCH_CACHE_ROOT} docker compose up -d")
+    else:
+        print(f"    MODEL_DIR={MODEL_DIR} docker compose up -d")
 
     return 1 if failed else 0
 

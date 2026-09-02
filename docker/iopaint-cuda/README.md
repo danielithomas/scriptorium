@@ -9,6 +9,27 @@ For diffusion-based outpainting and inpainting driven by prompts, see [comfyui-c
 - **NVIDIA GPU** (CUDA ≥ 11.8 recommended)
 - **Driver:** nvidia-container-toolkit configured
 
+### ⚠️ Blackwell / RTX 50-series: use `IOPAINT_DEVICE=cpu`
+
+The `uiewy/iopaint` image ships **PyTorch 2.4.0+cu121**, which contains no `sm_120` kernels. On an
+RTX 5080/5090/5070 the container starts cleanly and `torch.cuda.is_available()` returns `True`, but
+every inference fails — verified on an RTX 5080:
+
+```
+NVIDIA GeForce RTX 5080 with CUDA capability sm_120 is not compatible with the
+current PyTorch installation. The current PyTorch install supports CUDA
+capabilities sm_50 sm_60 sm_70 sm_75 sm_80 sm_86 sm_90.
+
+POST /api/v1/inpaint -> HTTP 500  RuntimeError (TorchScript interpreter)
+```
+
+Set `IOPAINT_DEVICE=cpu` in `.env`. LaMa is small enough that CPU is genuinely usable — a 256×256
+inpaint completes in **~2.7s**, and the same request that 500s on CUDA returns a correct result.
+
+This is the same constraint documented in [image-gen-cuda](../image-gen-cuda/), which solves it by
+building against PyTorch nightly + CUDA 12.8. Doing the same here needs a custom Dockerfile rather
+than the upstream image. Pre-Blackwell cards (sm_90 and below) work on `cuda` as-is.
+
 ## Quick Start
 
 ### 1. Set up environment
