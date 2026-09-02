@@ -32,6 +32,7 @@ Dockge scans the `STACKS_DIR` directory for Docker Compose files. Each subdirect
 |----------|---------|-------------|
 | `DOCKGE_PORT` | `5001` | Host port for web UI |
 | `STACKS_DIR` | `/data/docker` | Host path to Docker Compose stacks directory |
+| `DOCKGE_ENABLE_CONSOLE` | `false` | Console access. ⚠️ **WARNING** - Only use this setting on a secure network & connection |
 
 ## Security Notes
 

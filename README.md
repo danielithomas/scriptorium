@@ -31,9 +31,11 @@ Containerised service stacks for self-hosted AI, monitoring, and infrastructure.
 | [`ollama`](docker/ollama/) | CPU / GPU | Standard Ollama LLM inference server. | [README](docker/ollama/README.md) |
 | [`ollama-ipex`](docker/ollama-ipex/) | Intel Arc / iGPU | Ollama with IPEX-LLM for Intel GPU acceleration. | [README](docker/ollama-ipex/README.md) |
 | [`comfyui`](docker/comfyui/) | Intel XPU | ComfyUI node-based image generation with Intel XPU support. | [README](docker/comfyui/README.md) |
-| [`comfyui-cuda`](docker/comfyui-cuda/) | NVIDIA GPU (CUDA) | ComfyUI with FLUX.1-dev (fp8). Includes workflows and Skippy orchestrator pattern. | [README](docker/comfyui-cuda/README.md) |
+| [`comfyui-cuda`](docker/comfyui-cuda/) | NVIDIA GPU (CUDA) | ComfyUI with FLUX.1-dev, FLUX.2-klein, SDXL, HiDream-I1 and Qwen-Image. Includes pre-built workflows. | [README](docker/comfyui-cuda/README.md) |
+| [`iopaint-cuda`](docker/iopaint-cuda/) | NVIDIA GPU (CUDA) | IOPaint inpainting / object removal (LaMa, MI-GAN, diffusion models). | [README](docker/iopaint-cuda/README.md) |
 | [`chatterbox-tts`](docker/chatterbox-tts/) | CPU / NVIDIA GPU | Chatterbox voice cloning TTS server (CPU and CUDA). | [README](docker/chatterbox-tts/README.md) |
 | [`kokoro-tts`](docker/kokoro-tts/) | CPU | Lightweight OpenAI-compatible TTS server. | [README](docker/kokoro-tts/README.md) |
+| [`slideshow-gen`](docker/slideshow-gen/) | CPU / NVIDIA GPU | Slideshow video generator — TTS narration, MusicGen soundtrack, FFmpeg assembly. Job-queue REST API. | [README](docker/slideshow-gen/README.md) |
 | [`opencode`](docker/opencode/) | CPU | AI coding assistant container connected to Ollama. | [README](docker/opencode/README.md) |
 
 #### Infrastructure & Monitoring
@@ -45,16 +47,39 @@ Containerised service stacks for self-hosted AI, monitoring, and infrastructure.
 | [`n8n`](docker/n8n/) | Workflow automation platform. | [README](docker/n8n/README.md) |
 | [`monitoring`](docker/monitoring/) | Uptime Kuma + Glances (service & system monitoring). | [README](docker/monitoring/README.md) |
 
+#### Media
+
+| Stack | Description | Docs |
+|-------|-------------|------|
+| [`jellyfin`](docker/jellyfin/) | Jellyfin media server + Bazarr subtitle automation. Intel iGPU hardware transcoding (QSV/VAAPI). | [README](docker/jellyfin/README.md) |
+
 #### Image Generation — Quick Comparison
 
 `image-gen` and `image-gen-cuda` expose the **same REST API** on port `8100`, making them drop-in replacements. Choose based on hardware:
 
 | | `image-gen` (OpenVINO) | `image-gen-cuda` (CUDA) |
 |---|---|---|
-| SDXL Turbo (1024×1024) | ~47s (CPU) | ~1–2s (RTX 5080) |
+| SD 1.5 (512×512, 20 steps) | ~67s (CPU) | ~2s (RTX 5080) |
+| SDXL Turbo (1024×1024, 4 steps) | ~47s (CPU) | ~5s (RTX 5080) |
 | Model format | OpenVINO IR (manual conversion) | Native PyTorch (auto-download) |
 | FLUX support | No | Yes |
 | VRAM required | N/A (CPU mode) | 3–12 GB depending on model |
+
+#### Default Ports
+
+| Port | Stack | Port | Stack |
+|------|-------|------|-------|
+| 80 / 443 | caddy | 8188 | comfyui / comfyui-cuda |
+| 3001 | monitoring (Uptime Kuma) | 8189 | slideshow-gen |
+| 5001 | dockge | 8880 | kokoro-tts |
+| 5678 | n8n | 11434 | ollama |
+| 6767 | jellyfin (Bazarr) | 11435 | ollama-ipex |
+| 8004 | chatterbox-tts | 61208 | monitoring (Glances) |
+| 8096 | jellyfin | | |
+| 8100 | image-gen / image-gen-cuda | | |
+| 8110 | iopaint-cuda | | |
+
+All ports are overridable via each stack's `.env` file.
 
 ## Usage
 

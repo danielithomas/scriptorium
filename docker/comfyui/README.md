@@ -1,10 +1,12 @@
 # ComfyUI — Intel XPU
 
-[ComfyUI](https://github.com/comfyanonymous/ComfyUI) node-based image generation UI with Intel XPU (OpenVINO) acceleration. Uses the [reliq-hq XPU image](https://github.com/reliq-hq/ComfyUI) for Intel Arc / Meteor Lake iGPU support.
+[ComfyUI](https://github.com/comfyanonymous/ComfyUI) node-based image generation UI with Intel XPU acceleration (PyTorch XPU / IPEX, not OpenVINO). Uses the [reliq-hq XPU image](https://github.com/reliq-hq/ComfyUI) for Intel Arc / Meteor Lake iGPU support.
+
+For NVIDIA hardware use the [comfyui-cuda](../comfyui-cuda/) stack instead — it ships pre-built FLUX, SDXL, HiDream and Qwen workflows.
 
 ## Prerequisites
 
-- Intel Arc GPU or integrated GPU with OpenVINO support
+- Intel Arc GPU or integrated GPU with XPU support
 - `/dev/dri` device nodes accessible
 - Docker with compose v2
 
@@ -72,6 +74,6 @@ Update `RENDER_GID` and `VIDEO_GID` in `.env` to match.
 ## Notes
 
 - The `PYTORCH_ENABLE_XPU_FALLBACK=1` environment variable enables CPU fallback for unsupported XPU operations.
-- Models are mounted read-only (`:ro`) — manage model files on the host.
-- For NVIDIA GPU support, use the standard ComfyUI Docker image instead of the XPU variant.
+- Models are mounted read-only (`:ro`) — manage model files on the host. Note this differs from `comfyui-cuda`, which mounts the model directory read-write.
+- For NVIDIA GPU support, use the [comfyui-cuda](../comfyui-cuda/) stack.
 - Custom nodes persist across container recreations via the named volume.

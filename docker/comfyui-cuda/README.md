@@ -64,9 +64,13 @@ python download-models.py /path/to/models              # FLUX.1-dev only (~18GB)
 python download-models.py /path/to/models --fill       # + FLUX.1-Fill-dev for outpainting (~22GB)
 python download-models.py /path/to/models --checkpoints # + SDXL base (~6.9GB)
 python download-models.py /path/to/models --flux2       # + FLUX.2-klein-9B (~17GB)
-python download-models.py /path/to/models --all         # everything (~160GB+)
+python download-models.py /path/to/models --kontext      # + FLUX.1-Kontext-dev (~22GB)
 python download-models.py /path/to/models --hidream     # + HiDream-I1 Dev FP8 (~32GB)
+python download-models.py /path/to/models --hidream-gguf # + HiDream-I1 Dev GGUF Q5_K_M (~13.5GB, fits 16GB VRAM)
+python download-models.py /path/to/models --hidream-fast # + HiDream-I1 Fast FP8 (~17GB, 16 steps)
 python download-models.py /path/to/models --qwen-image  # + Qwen-Image FP8 (~29GB)
+python download-models.py /path/to/models --extras      # + embeddings, LoRAs, upscalers
+python download-models.py /path/to/models --all         # everything (~160GB+)
 python download-models.py --list                        # see all available downloads
 
 # 4. Configure environment
@@ -92,9 +96,13 @@ docker compose up -d --build
 | FLUX.1-Kontext-dev | UNet | ~22GB | `UNETLoader` | Context-aware image editing |
 | SDXL Base 1.0 | Checkpoint | ~6.9GB | `CheckpointLoaderSimple` | Mature ecosystem, LoRA support |
 | HiDream-I1 Dev (fp8) | UNet + 4×CLIP + VAE | ~32GB | `UNETLoader` + `QuadrupleCLIPLoader` | 17B DiT, requires 4 text encoders |
+| HiDream-I1 Dev (GGUF Q5_K_M) | UNet only¹ | ~13.5GB | `UnetLoaderGGUF` + `QuadrupleCLIPLoader` | Quantised HiDream — recommended for 16GB VRAM. Needs the [ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF) custom node |
+| HiDream-I1 Fast (fp8) | UNet only¹ | ~17GB | `UNETLoader` + `QuadrupleCLIPLoader` | Distilled 16-step HiDream variant |
 | Qwen-Image (fp8) | UNet + CLIP + VAE | ~29GB | `UNETLoader` + `CLIPLoader` | 20B MMDiT, excellent multilingual text |
 
 All FLUX models share the same CLIP-L, T5-XXL, and VAE components. SDXL is a self-contained checkpoint. HiDream uses 4 dedicated text encoders (CLIP-G, CLIP-L, T5-XXL, Llama-3.1-8B). Qwen-Image uses a single Qwen 2.5 VL 7B encoder.
+
+¹ The GGUF and Fast variants are diffusion models only — they reuse the text encoders and VAE from `--hidream`. Download that first, or the workflow will fail to load its encoders.
 
 ### Shared Model Directory
 
@@ -190,6 +198,26 @@ Pre-built workflow files in `workflows/`:
 |----------|-----------|-------|----------|
 | `sdxl-t2i-api-template.json` | Configurable | 30 | API automation template |
 | `sdxl-t2i-ultrawide-upscaled.json` | 1344×576 → 4x | 30 | Ultrawide + 4x upscale |
+
+### HiDream-I1
+
+Requires `--hidream` for the four text encoders and VAE.
+
+| Workflow | Resolution | Steps | Use Case |
+|----------|-----------|-------|----------|
+| `hidream-i1-dev-t2i.json` | 1024×1024 | 50 | Standard text-to-image |
+| `hidream-i1-dev-t2i-ultrawide.json` | 2560×1024 → 4x | 50 | Ultrawide + upscale |
+| `hidream-i1-dev-t2i-api-template.json` | 1024×1024 | 28 | API automation template |
+
+### Qwen-Image
+
+Strong multilingual text rendering — the best choice when the image must contain legible words.
+
+| Workflow | Resolution | Steps | Use Case |
+|----------|-----------|-------|----------|
+| `qwen-image-t2i.json` | 1024×1024 | 30 | Standard text-to-image |
+| `qwen-image-t2i-ultrawide.json` | 2560×1024 → 4x | 30 | Ultrawide + upscale |
+| `qwen-image-t2i-api-template.json` | 1024×1024 | 20 | API automation template |
 
 ### Outpainting / Inpainting
 

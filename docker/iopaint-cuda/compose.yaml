@@ -1,0 +1,47 @@
+services:
+  iopaint:
+    # Built locally rather than using uiewy/iopaint:latest — that image ships
+    # PyTorch cu121, which has no sm_120 kernels and fails every inference on
+    # Blackwell / RTX 50-series. See README.
+    build:
+      context: .
+      args:
+        IOPAINT_VERSION: ${IOPAINT_VERSION:-}
+    image: iopaint-cuda:local
+    container_name: iopaint-cuda
+    restart: unless-stopped
+    ports:
+      - "${IOPAINT_PORT:-8110}:8080"
+    volumes:
+      # Model caches, at the default locations torch.hub and huggingface_hub
+      # read from. The container runs as root, so these are under /root/.cache.
+      #
+      # By default both derive from MODEL_DIR. Override them individually to
+      # point at caches shared with another stack — see .env.example.
+      - ${TORCH_CACHE_DIR:-${MODEL_DIR:?set MODEL_DIR, or both TORCH_CACHE_DIR and HF_CACHE_DIR}/torch}:/root/.cache/torch
+      - ${HF_CACHE_DIR:-${MODEL_DIR:?set MODEL_DIR, or both TORCH_CACHE_DIR and HF_CACHE_DIR}/huggingface}:/root/.cache/huggingface
+      # Batch workspace for the file-manager UI. Only used when IOPAINT_EXTRA_ARGS
+      # passes --input=/images --output-dir=/output; harmless empty dirs otherwise.
+      - ${IMAGES_PATH:-./images}:/images
+      - ${OUTPUT_PATH:-./output}:/output
+      # IOPaint hardcodes its thumbnail cache to <output-dir>/thumbnails with no
+      # flag to move it. This nested mount redirects that path elsewhere; by
+      # default it resolves to the same place IOPaint would have used anyway.
+      - ${THUMBNAILS_PATH:-${OUTPUT_PATH:-./output}/thumbnails}:/output/thumbnails
+      # A diffusers inpainting model you already have elsewhere, exposed in place
+      # rather than copied. IOPaint scans <HF cache>/hub/**/*/model_index.json and
+      # names the model from the folder THREE levels above that file, so the
+      # models--<org>--<name>/snapshots/<ref>/ shape is required: mount it flat and
+      # every model collapses to the same name, after which the scan's dedup
+      # silently drops all but the first. Copy this line per extra model.
+      - ${SD_INPAINT_PATH:-./models/sd15-inpainting}:/root/.cache/huggingface/hub/models--local--sd15-inpainting/snapshots/main:ro
+    # Mirrors the Dockerfile's CMD, parameterised. The base image sets no
+    # ENTRYPOINT, so this runs directly.
+    command: iopaint start --model=${IOPAINT_MODEL:-lama} --device=${IOPAINT_DEVICE:-cuda} --host=0.0.0.0 --port=8080 ${IOPAINT_EXTRA_ARGS:-}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

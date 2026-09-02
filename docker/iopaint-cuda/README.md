@@ -1,0 +1,238 @@
+# iopaint-cuda
+
+Docker Compose stack for [IOPaint](https://github.com/Sanster/IOPaint) — an open-source image inpainting and object-removal tool — with NVIDIA CUDA GPU acceleration.
+
+For diffusion-based outpainting and inpainting driven by prompts, see [comfyui-cuda](../comfyui-cuda/) (FLUX.1-Fill-dev) or [image-gen-cuda](../image-gen-cuda/) (`/outpaint`). IOPaint is the better tool for erasing objects and cleaning up images without a prompt.
+
+## Hardware
+
+- **NVIDIA GPU** (CUDA ≥ 11.8 recommended)
+- **Driver:** nvidia-container-toolkit configured
+
+### Why this stack builds its own image
+
+The common `uiewy/iopaint` image ships **PyTorch 2.4.0+cu121**, which contains no `sm_120` kernels.
+On Blackwell / RTX 50-series it starts cleanly and `torch.cuda.is_available()` returns `True` — then
+every inference fails, so the breakage only surfaces at request time:
+
+```
+NVIDIA GeForce RTX 5080 with CUDA capability sm_120 is not compatible with the
+current PyTorch installation. Supports: sm_50 … sm_90.
+
+POST /api/v1/inpaint -> HTTP 500  RuntimeError (TorchScript interpreter)
+```
+
+The `Dockerfile` here installs **PyTorch cu128** instead, which covers `sm_75` through `sm_120` —
+Blackwell and every earlier supported card. A build-time check fails the build if a dependency ever
+replaces that wheel, rather than letting it reach production and 500 at inference.
+
+Measured on an RTX 5080 after the rebuild: the request above returns **HTTP 200 in ~244 ms** warm.
+
+## Quick Start
+
+### 1. Set up environment
+
+```bash
+cp .env.example .env
+# Edit .env — set MODEL_DIR to your host model cache directory
+```
+
+`MODEL_DIR` must point to the host directory that holds your HuggingFace and Torch caches. The
+container runs as **root**, so this directory must be writable by root on the Docker host.
+
+### 2. Download models (optional — iopaint downloads models automatically at startup)
+
+If you prefer to pre-cache models on the host:
+
+```bash
+export MODEL_DIR=/path/to/iopaint/models
+
+python3 download-models.py              # LaMa only — the default model (~196MB)
+python3 download-models.py --diffusers  # + diffusers inpainting models (~7GB)
+python3 download-models.py --list       # show what's available
+python3 download-models.py --force      # re-download even if present
+```
+
+The default run needs no dependencies beyond the standard library. `--diffusers` additionally
+requires `pip install huggingface-hub`.
+
+Only download the diffusers models if you intend to change `IOPAINT_MODEL` — with the default
+`lama` they are never loaded.
+
+### 3. Build and launch
+
+The image is built locally (see [why](#why-this-stack-builds-its-own-image)), so the first run
+compiles it — expect a few minutes and a large PyTorch download:
+
+```bash
+MODEL_DIR=/path/to/iopaint/models docker compose up -d --build
+```
+
+Subsequent starts reuse the built image and need no `--build`.
+
+Access at **http://localhost:8110** (or whatever `IOPAINT_PORT` is set to).
+
+## Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `MODEL_DIR` | _(required*)_ | Host path the two caches derive from |
+| `HF_CACHE_DIR` | `$MODEL_DIR/huggingface` | HuggingFace `HF_HOME` — the directory containing `hub/` |
+| `TORCH_CACHE_DIR` | `$MODEL_DIR/torch` | Torch cache root — the directory containing `hub/checkpoints/` |
+| `IOPAINT_PORT` | `8110` | Host port the stack listens on |
+| `IOPAINT_MODEL` | `lama` | Model loaded at startup (lama, migan, zdiff, or a diffusers repo id) |
+| `IOPAINT_DEVICE` | `cuda` | Inference device — set `cpu` to run without a GPU |
+| `IOPAINT_EXTRA_ARGS` | _(empty)_ | Additional `iopaint start` CLI flags |
+| `IOPAINT_VERSION` | _(latest)_ | Build arg — pin the `iopaint` pip package to a specific version |
+
+## Model Caches
+
+iopaint downloads models at startup if not already cached. The two bind mounts put those caches on
+the host at the exact paths the libraries read from inside the container:
+
+| Host path | Container path | Holds |
+|-----------|----------------|-------|
+| `MODEL_DIR/torch/hub/checkpoints/` | `/root/.cache/torch/hub/checkpoints/` | Single-file models fetched by URL (LaMa, MI-GAN, …) |
+| `MODEL_DIR/huggingface/hub/` | `/root/.cache/huggingface/hub/` | Diffusers-format models, in HuggingFace cache layout |
+
+The `hub/` segment in both paths is required — it is where `torch.hub` and `huggingface_hub` look by
+default. A model placed one level up is invisible to the container and gets downloaded again at
+startup.
+
+`download-models.py` writes to exactly these paths, so anything it fetches is picked up on the next
+`docker compose up`.
+
+\* `MODEL_DIR` is only required when `HF_CACHE_DIR` and `TORCH_CACHE_DIR` are not both set.
+
+### Sharing a cache with other stacks
+
+[`slideshow-gen`](../slideshow-gen/) already sets `HF_HOME=/models` and `TORCH_HOME=/models/torch`
+against its shared model root, so pointing iopaint at the same directories makes both stacks reuse
+one cache instead of downloading the same weights twice:
+
+```env
+# .env — MODEL_DIR is unused in this mode and may be omitted
+HF_CACHE_DIR=/path/to/shared/models
+TORCH_CACHE_DIR=/path/to/shared/models/torch
+```
+
+That resolves to `<shared>/hub` and `<shared>/torch/hub/checkpoints` — the same layout slideshow-gen
+produces. Export the same two variables when running `download-models.py` so the host-side downloads
+land in the shared cache too.
+
+Note this shares the *HuggingFace and torch caches only*. The structured model tree that
+[`comfyui-cuda`](../comfyui-cuda/) and [`image-gen-cuda`](../image-gen-cuda/) use (`checkpoints/`,
+`unet/`, `loras/`, …) is a different layout, so no weights are shared with those two — iopaint just
+adds `hub/`, `xet/` and `torch/` alongside them.
+
+### Windows hosts
+
+The HuggingFace cache layout uses symlinks and long directory names. If `--diffusers` fails with
+`WinError 3` or a symlink permission error, either keep `MODEL_DIR` short (e.g. `D:\iopaint`) or
+enable Developer Mode so unprivileged symlink creation is allowed. The default LaMa download is a
+plain file copy and is unaffected.
+
+## Batch Workspace (file manager)
+
+Point IOPaint at a folder and the UI gains a file browser — work through images one at a time
+instead of uploading each one:
+
+```env
+IMAGES_PATH=/path/to/inbox
+OUTPUT_PATH=/path/to/processed
+IOPAINT_EXTRA_ARGS=--input=/images --output-dir=/output
+```
+
+Those mount to `/images` and `/output` in the container. Drop files into `IMAGES_PATH`, pick one in
+the browser, erase what you want, and save — the result lands in `OUTPUT_PATH`. The UI gets two
+tabs, input and output, so you can review what you've already produced.
+
+**The listing is a live filesystem glob** (`api_medias` → `glob_img` on every request), so images
+added while the server is running appear without a restart.
+
+Constraints worth knowing:
+
+| | |
+|---|---|
+| Formats | `.jpg`, `.jpeg`, `.png` only — anything else is silently skipped, not errored |
+| Depth | Top level only; subfolders are ignored |
+| `--output-dir` | Mandatory when `--input` is a directory — IOPaint refuses to start without it |
+| Side effect | A `thumbnails/` directory is created inside `OUTPUT_PATH` |
+
+Pointing `--input` at a single **file** instead of a directory pre-loads just that image, served via
+`GET /api/v1/inputimage`, and skips the file manager entirely.
+
+## Models
+
+IOPaint offers two kinds of model, discovered in different places.
+
+### Erase models (lama, migan, zits, …)
+
+Prompt-free object removal. IOPaint downloads these on demand at first use, into
+`<torch cache>/hub/checkpoints/`. Nothing needs moving — but you can pre-cache them to avoid the
+wait mid-session:
+
+```bash
+python3 download-models.py --erase-models              # all of them (~3.2GB)
+python3 download-models.py --erase-models migan zits   # just these
+```
+
+`cv2` is built into OpenCV and always available. `lama` is the default and is fetched by a plain
+`download-models.py` run.
+
+### Diffusion inpainting models (prompt-driven)
+
+Scanned from two locations only:
+
+- `<HF cache>/hub/**/*/model_index.json` — diffusers format
+- `<model dir>/stable_diffusion/*.safetensors|.ckpt` — single file
+
+`--diffusers` downloads complete models into the first location as genuine HuggingFace cache
+entries. **This is the recommended route** — they load with no further setup:
+
+```bash
+python3 download-models.py --diffusers    # ~7GB
+```
+
+### Reusing a model you already have (advanced)
+
+You can instead mount an existing diffusers directory read-only via `SD_INPAINT_PATH`, avoiding a
+second copy. It works, but depends on cache internals that HuggingFace does not document as an
+interface, and three separate details must all be right:
+
+1. **The folder shape is load-bearing.** IOPaint names the model from the directory *three levels
+   above* `model_index.json`, expecting `models--<org>--<name>/snapshots/<ref>/`. Mounted flat,
+   every model takes the cache directory's name — and the scan deduplicates by name, so the second
+   model you add is silently dropped.
+2. **A `refs/<ref>` file is required.** Scanning globs for `model_index.json`, but *loading*
+   resolves the name through the HuggingFace cache, which reads `refs/`. Without it the model
+   appears in the picker and then fails with "model is not cached locally".
+3. **A model saved by `image-gen-cuda` is missing tokenizer files.** Its downloader uses
+   `save_pretrained`, which writes only the fast tokenizer (`tokenizer.json`). IOPaint builds the
+   *slow* `CLIPTokenizer`, needing `vocab.json` and `merges.txt` — without them the load fails with
+   `TypeError: expected str, bytes or os.PathLike object, not NoneType`. Copy the two files
+   (~1.5MB) from the original repo into the model's `tokenizer/` directory; they are additive and
+   do not affect `image-gen-cuda`, which uses the fast tokenizer.
+
+Prefer `--diffusers` unless disk space genuinely rules it out.
+
+## Container Command
+
+The compose `command:` mirrors the Dockerfile's `CMD`, parameterised by `IOPAINT_MODEL`,
+`IOPAINT_DEVICE` and `IOPAINT_EXTRA_ARGS`. The base image sets no `ENTRYPOINT`, so it runs directly —
+adjust those variables rather than editing the command.
+
+## NVIDIA Runtime
+
+The compose file requests the GPU through `deploy.resources.reservations.devices` with `driver: nvidia`,
+which is the same mechanism used by the other CUDA stacks in this repo and requires
+[nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+on the host.
+
+If Docker cannot find the NVIDIA runtime, set it as the default in `/etc/docker/daemon.json`:
+
+```json
+{
+  "default-runtime": "nvidia"
+}
+```

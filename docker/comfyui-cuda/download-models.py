@@ -9,7 +9,7 @@ upscalers). ComfyUI uses separate component files for FLUX/HiDream/Qwen-Image
 
 Usage:
     python download-models.py [MODELS_DIR]
-    python download-models.py D:\\SD\\models
+    python download-models.py D:\\models
     python download-models.py /data/models --all
     python download-models.py --list
     python download-models.py /data/models --checkpoints    # SDXL checkpoint only
@@ -31,6 +31,15 @@ import sys
 import time
 import argparse
 import urllib.request
+
+# The status glyphs below are not encodable in cp1252, which is still the
+# default console encoding on Windows - without this the script dies on its
+# first print rather than on anything to do with models.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 # ─── FLUX Component Registry ─────────────────────────────────────────────────
 # FLUX models are loaded as separate components in ComfyUI, not as a single
@@ -290,7 +299,8 @@ HIDREAM_COMPONENTS = {
 
 # ─── HiDream-I1 GGUF Components ──────────────────────────────────────────────
 # GGUF-quantized diffusion models from city96/HiDream-I1-Dev-gguf (HuggingFace).
-# Place model files in ComfyUI/models/diffusion_models/.
+# Saved into unet/ — extra_model_paths.yaml maps ComfyUI's diffusion_models type
+# to unet/, so a file placed in a literal diffusion_models/ directory is never found.
 # Requires the ComfyUI-GGUF custom extension and the "Unet Loader (GGUF)" node
 # (class_type: UnetLoaderGGUF). Uses the SAME text encoders and VAE as the FP8
 # version in HIDREAM_COMPONENTS — download those separately with --hidream.
@@ -305,7 +315,7 @@ HIDREAM_GGUF_COMPONENTS = {
     "hidream-i1-dev-gguf-q5km": {
         "hf_repo": "city96/HiDream-I1-Dev-gguf",
         "hf_file": "hidream-i1-dev-Q5_K_M.gguf",
-        "subdir": "diffusion_models",
+        "subdir": "unet",
         "description": "HiDream-I1 Dev GGUF Q5_K_M — recommended for 16GB VRAM",
         "size_approx": "~13.5GB",
         "required": True,
@@ -728,7 +738,7 @@ shared automatically.
     os.makedirs(models_dir, exist_ok=True)
 
     # Ensure all subdirectories exist
-    for subdir in ["checkpoints", "unet", "clip", "vae", "loras", "embeddings", "upscaler", "diffusion_models"]:
+    for subdir in ["checkpoints", "unet", "clip", "vae", "loras", "embeddings", "upscaler"]:
         os.makedirs(os.path.join(models_dir, subdir), exist_ok=True)
 
     total_downloaded = 0

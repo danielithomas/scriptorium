@@ -23,7 +23,7 @@ services:
     devices:
       - /dev/dri:/dev/dri  # Intel QSV/VAAPI hardware transcoding
     environment:
-      - TZ=${TZ:-Australia/Melbourne}
+      - TZ=${TZ:-UTC}
       - JELLYFIN_PublishedServerUrl=${SERVER_URL:-http://localhost:8096}
     group_add:
       - "${RENDER_GROUP:-render}"  # GPU access group (check: getent group render)
@@ -47,7 +47,7 @@ services:
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
-      - TZ=${TZ:-Australia/Melbourne}
+      - TZ=${TZ:-UTC}
     depends_on:
       jellyfin:
         condition: service_healthy

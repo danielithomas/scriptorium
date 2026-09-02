@@ -14,13 +14,17 @@ Multi-model image generation API using OpenVINO, with Real-ESRGAN upscaling and 
 ## Quick Start
 
 ```bash
-# 1. Download models (see Model Setup below)
-# 2. Set your models path
-export MODELS_PATH=/path/to/your/models
+# 1. Download and convert models (see Model Setup below)
+
+# 2. Configure
+cp .env.example .env
+# Edit .env — set MODELS_PATH, and OV_DEVICE=GPU for Intel iGPU/Arc
 
 # 3. Build and run
 docker compose up -d --build
 ```
+
+Verify: `curl http://localhost:8100/health`
 
 ## Model Setup
 
@@ -117,7 +121,9 @@ For Intel iGPU/Arc acceleration, ensure:
    getent group render video | cut -d: -f3
    ```
 
-For NVIDIA GPUs, this stack uses OpenVINO (Intel-optimised). For NVIDIA, consider using the standard PyTorch/CUDA diffusers pipeline instead.
+This stack is OpenVINO (Intel-optimised) and has no CUDA path. For NVIDIA GPUs use the
+[image-gen-cuda](../image-gen-cuda/) stack — it serves the same API on the same port, so clients
+need no changes.
 
 ## Performance (approximate, CPU)
 
