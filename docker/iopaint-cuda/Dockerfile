@@ -6,7 +6,7 @@
 FROM nvidia/cuda:12.8.0-devel-ubuntu22.04
 
 # IOPaint version to install (pip package). Override at build time to pin.
-ARG IOPAINT_VERSION=
+ARG IOPAINT_VERSION=1.6.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv \
@@ -24,8 +24,14 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Use the STABLE cu128 channel, not nightly: stable has shipped sm_120 since 2.7,
 # and the nightly index rebuilds torch and torchvision independently, so a nightly
 # pair pulled on different days fails to resolve against each other.
+#
+# Pinned to the combination verified end-to-end on an RTX 5080 (sm_120).
+# Bump deliberately and re-run the smoke test in the README when you do.
+ARG TORCH_VERSION=2.11.0+cu128
+ARG TORCHVISION_VERSION=0.26.0+cu128
 RUN pip install --no-cache-dir --retries 5 --timeout 120 \
-    torch torchvision --index-url https://download.pytorch.org/whl/cu128
+    "torch==${TORCH_VERSION}" "torchvision==${TORCHVISION_VERSION}" \
+    --index-url https://download.pytorch.org/whl/cu128
 
 # Install IOPaint. Its dependency resolution can pull a CPU or cu121 torch over
 # the top of ours, so pin the installed build as a constraint rather than

@@ -14,6 +14,15 @@ Usage:
 import os
 import sys
 
+# The status glyphs below are not encodable in cp1252, which is still the
+# default console encoding on Windows - without this the script dies on its
+# first print rather than on anything to do with models.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 MODEL_EXTENSIONS = {
     ".safetensors", ".pth", ".pt", ".ckpt", ".bin", ".onnx", ".gguf",
 }

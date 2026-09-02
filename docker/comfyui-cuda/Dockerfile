@@ -13,9 +13,12 @@ RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install PyTorch with CUDA 12.8 support (required for Blackwell / RTX 50-series / sm_120)
-# Using nightly until stable PyTorch includes sm_120 kernels
-RUN pip install --no-cache-dir --pre \
-    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+#
+# STABLE cu128, not nightly: the nightly index rebuilds torch, torchvision and
+# torchaudio independently, so a set pulled on different days fails to resolve
+# against each other (ResolutionImpossible). Stable has shipped sm_120 since 2.7.
+RUN pip install --no-cache-dir --retries 5 --timeout 120 \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 
 # Clone ComfyUI
 RUN git clone --depth 1 --branch ${COMFYUI_VERSION} \
