@@ -290,7 +290,8 @@ HIDREAM_COMPONENTS = {
 
 # ─── HiDream-I1 GGUF Components ──────────────────────────────────────────────
 # GGUF-quantized diffusion models from city96/HiDream-I1-Dev-gguf (HuggingFace).
-# Place model files in ComfyUI/models/diffusion_models/.
+# Saved into unet/ — extra_model_paths.yaml maps ComfyUI's diffusion_models type
+# to unet/, so a file placed in a literal diffusion_models/ directory is never found.
 # Requires the ComfyUI-GGUF custom extension and the "Unet Loader (GGUF)" node
 # (class_type: UnetLoaderGGUF). Uses the SAME text encoders and VAE as the FP8
 # version in HIDREAM_COMPONENTS — download those separately with --hidream.
@@ -305,7 +306,7 @@ HIDREAM_GGUF_COMPONENTS = {
     "hidream-i1-dev-gguf-q5km": {
         "hf_repo": "city96/HiDream-I1-Dev-gguf",
         "hf_file": "hidream-i1-dev-Q5_K_M.gguf",
-        "subdir": "diffusion_models",
+        "subdir": "unet",
         "description": "HiDream-I1 Dev GGUF Q5_K_M — recommended for 16GB VRAM",
         "size_approx": "~13.5GB",
         "required": True,
@@ -728,7 +729,7 @@ shared automatically.
     os.makedirs(models_dir, exist_ok=True)
 
     # Ensure all subdirectories exist
-    for subdir in ["checkpoints", "unet", "clip", "vae", "loras", "embeddings", "upscaler", "diffusion_models"]:
+    for subdir in ["checkpoints", "unet", "clip", "vae", "loras", "embeddings", "upscaler"]:
         os.makedirs(os.path.join(models_dir, subdir), exist_ok=True)
 
     total_downloaded = 0
