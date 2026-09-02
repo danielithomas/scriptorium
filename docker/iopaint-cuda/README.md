@@ -87,13 +87,13 @@ one cache instead of downloading the same weights twice:
 
 ```env
 # .env — MODEL_DIR is unused in this mode and may be omitted
-HF_CACHE_DIR=D:/SD/models
-TORCH_CACHE_DIR=D:/SD/models/torch
+HF_CACHE_DIR=/path/to/shared/models
+TORCH_CACHE_DIR=/path/to/shared/models/torch
 ```
 
-That resolves to `D:/SD/models/hub` and `D:/SD/models/torch/hub/checkpoints` — the same layout
-slideshow-gen produces. Export the same two variables when running `download-models.py` so the
-host-side downloads land in the shared cache too.
+That resolves to `<shared>/hub` and `<shared>/torch/hub/checkpoints` — the same layout slideshow-gen
+produces. Export the same two variables when running `download-models.py` so the host-side downloads
+land in the shared cache too.
 
 Note this shares the *HuggingFace and torch caches only*. The structured model tree that
 [`comfyui-cuda`](../comfyui-cuda/) and [`image-gen-cuda`](../image-gen-cuda/) use (`checkpoints/`,

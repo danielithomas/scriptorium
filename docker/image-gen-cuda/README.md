@@ -39,12 +39,12 @@ Docker Desktop for Windows supports GPU passthrough natively with WSL2:
 pip install diffusers transformers accelerate torch safetensors
 
 # 2. Download models to your chosen directory
-python download-models.py D:\SD\models          # required models only (~5GB)
-python download-models.py D:\SD\models --all    # all models + LoRAs (~80GB)
+python download-models.py /path/to/models          # required models only (~5GB)
+python download-models.py /path/to/models --all    # all models + LoRAs (~80GB)
 
 # 3. Create .env file with your models path
 cp .env.example .env
-# Edit .env → MODELS_PATH=D:\SD\models
+# Edit .env → MODELS_PATH=/path/to/models
 
 # 4. Build and run
 docker compose up -d --build
@@ -57,16 +57,16 @@ docker compose up -d --build
 python download-models.py --list
 
 # Download specific models
-python download-models.py D:\SD\models --models sd-v1-5 dreamshaper-8 sdxl-turbo
+python download-models.py /path/to/models --models sd-v1-5 dreamshaper-8 sdxl-turbo
 
 # Download all models plus LoRAs
-python download-models.py D:\SD\models --all
+python download-models.py /path/to/models --all
 
 # Download LoRAs only (alongside default required models)
-python download-models.py D:\SD\models --loras
+python download-models.py /path/to/models --loras
 
 # Re-download / update a model
-python download-models.py D:\SD\models --models sd-v1-5 --force
+python download-models.py /path/to/models --models sd-v1-5 --force
 ```
 
 The script **skips models that already exist** locally — safe to run repeatedly to add new models over time. Models are saved in standard HuggingFace diffusers format.

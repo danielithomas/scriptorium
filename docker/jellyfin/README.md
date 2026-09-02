@@ -21,8 +21,11 @@ Jellyfin healthcheck leaves Bazarr in `created` state rather than starting it.
 ### 1. Create Media Directories
 
 ```bash
-sudo mkdir -p /data/media/movies/{bollywood,hollywood,tamil,telugu,other}
+sudo mkdir -p /data/media/movies
 sudo mkdir -p /data/media/tv
+# Optional: split movies into subdirectories (by genre, language, era, …)
+# and add each as its own Jellyfin library
+# sudo mkdir -p /data/media/movies/{features,documentaries,kids}
 sudo mkdir -p /data/docker/jellyfin/{config,cache,bazarr}
 sudo chown -R 1000:1000 /data/media /data/docker/jellyfin
 ```
@@ -44,7 +47,7 @@ docker compose up -d
 
 1. Open `http://<host>:8096` in a browser
 2. Follow the Jellyfin setup wizard (language, admin user, libraries)
-3. Add libraries pointing to `/media/movies/bollywood`, `/media/movies/hollywood`, etc.
+3. Add libraries pointing to `/media/movies` and `/media/tv` (or to individual subdirectories if you split them)
 4. Enable hardware transcoding: Dashboard → Playback → Transcoding → VAAPI or QSV
 5. Create user accounts (admin + family members)
 
@@ -53,7 +56,7 @@ docker compose up -d
 1. Open `http://<host>:6767`
 2. Configure subtitle providers (OpenSubtitles account recommended)
 3. Connect to Jellyfin: Settings → Jellyfin → API key from Jellyfin dashboard
-4. Set language profiles (English subtitles for Indian films)
+4. Set language profiles for the subtitle languages you want
 
 ## Hardware Transcoding (Intel)
 
@@ -82,14 +85,13 @@ Follow Jellyfin's expected format for automatic metadata matching:
 
 ```
 movies/
-├── bollywood/
-│   ├── 3 Idiots (2009)/
-│   │   └── 3 Idiots (2009).mp4
-│   ├── Dangal (2016)/
-│   │   └── Dangal (2016).mp4
-│   └── Pathaan (2023)/
-│       ├── Pathaan (2023).mp4
-│       └── Pathaan (2023).srt
+├── Example Movie (2019)/
+│   └── Example Movie (2019).mp4
+├── Another Film (2021)/
+│   ├── Another Film (2021).mp4
+│   └── Another Film (2021).srt
+└── Third Title (2023)/
+    └── Third Title (2023).mkv
 ```
 
 **Key rules:**
@@ -116,7 +118,7 @@ movies/
 | `JELLYFIN_PORT` | `8096` | Web UI / API port |
 | `JELLYFIN_HTTPS_PORT` | `8920` | HTTPS port (optional — only used if TLS is configured in Jellyfin) |
 | `BAZARR_PORT` | `6767` | Bazarr web UI |
-| `TZ` | `Australia/Melbourne` | Timezone |
+| `TZ` | `UTC` | Timezone (IANA name, e.g. `Europe/London`) |
 | `PUID` / `PGID` | `1000` | File ownership user/group |
 | `RENDER_GROUP` | `render` | GPU access group name |
 | `SERVER_URL` | `http://localhost:8096` | Published URL for clients |
