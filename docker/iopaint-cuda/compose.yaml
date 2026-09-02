@@ -28,6 +28,13 @@ services:
       # flag to move it. This nested mount redirects that path elsewhere; by
       # default it resolves to the same place IOPaint would have used anyway.
       - ${THUMBNAILS_PATH:-${OUTPUT_PATH:-./output}/thumbnails}:/output/thumbnails
+      # A diffusers inpainting model you already have elsewhere, exposed in place
+      # rather than copied. IOPaint scans <HF cache>/hub/**/*/model_index.json and
+      # names the model from the folder THREE levels above that file, so the
+      # models--<org>--<name>/snapshots/<ref>/ shape is required: mount it flat and
+      # every model collapses to the same name, after which the scan's dedup
+      # silently drops all but the first. Copy this line per extra model.
+      - ${SD_INPAINT_PATH:-./models/sd15-inpainting}:/root/.cache/huggingface/hub/models--local--sd15-inpainting/snapshots/main:ro
     # Mirrors the Dockerfile's CMD, parameterised. The base image sets no
     # ENTRYPOINT, so this runs directly.
     command: iopaint start --model=${IOPAINT_MODEL:-lama} --device=${IOPAINT_DEVICE:-cuda} --host=0.0.0.0 --port=8080 ${IOPAINT_EXTRA_ARGS:-}

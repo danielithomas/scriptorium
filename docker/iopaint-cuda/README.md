@@ -162,6 +162,57 @@ Constraints worth knowing:
 Pointing `--input` at a single **file** instead of a directory pre-loads just that image, served via
 `GET /api/v1/inputimage`, and skips the file manager entirely.
 
+## Models
+
+IOPaint offers two kinds of model, discovered in different places.
+
+### Erase models (lama, migan, zits, …)
+
+Prompt-free object removal. IOPaint downloads these on demand at first use, into
+`<torch cache>/hub/checkpoints/`. Nothing needs moving — but you can pre-cache them to avoid the
+wait mid-session:
+
+```bash
+python3 download-models.py --erase-models              # all of them (~3.2GB)
+python3 download-models.py --erase-models migan zits   # just these
+```
+
+`cv2` is built into OpenCV and always available. `lama` is the default and is fetched by a plain
+`download-models.py` run.
+
+### Diffusion inpainting models (prompt-driven)
+
+Scanned from two locations only:
+
+- `<HF cache>/hub/**/*/model_index.json` — diffusers format
+- `<model dir>/stable_diffusion/*.safetensors|.ckpt` — single file
+
+`--diffusers` downloads complete ones into the first location. To reuse a diffusers model you
+**already have** elsewhere without a second copy, mount it read-only via `SD_INPAINT_PATH` — but two
+details matter, and both fail confusingly if you get them wrong:
+
+**1. The folder shape is load-bearing.** IOPaint names the model from the directory *three levels
+above* `model_index.json`, expecting HuggingFace's `models--<org>--<name>/snapshots/<ref>/` layout.
+Mount it flat and every model is named after the cache directory instead — and since the scan
+deduplicates by name, the second model you add is silently dropped.
+
+**2. It needs a `refs/<ref>` file.** The scan finds a model by globbing for `model_index.json`, but
+*loading* passes the model name through HuggingFace cache resolution, which reads `refs/`. Without
+it the model appears in the picker and then fails with "model is not cached locally". Create it
+alongside the mount — the file just contains the ref name:
+
+```bash
+mkdir -p "<HF cache>/hub/models--local--sd15-inpainting/refs"
+printf 'main' > "<HF cache>/hub/models--local--sd15-inpainting/refs/main"
+```
+
+**A model saved by `image-gen-cuda` needs two extra files.** Its downloader uses `save_pretrained`,
+which writes only the fast tokenizer (`tokenizer.json`). IOPaint's diffusers path builds the *slow*
+`CLIPTokenizer`, which needs `vocab.json` and `merges.txt` — without them the load fails with
+`TypeError: expected str, bytes or os.PathLike object, not NoneType`. Fetch the two files (~1.5MB)
+into the model's `tokenizer/` directory from the original repo on HuggingFace. They are additive and
+do not affect `image-gen-cuda`, which uses the fast tokenizer.
+
 ## Container Command
 
 The compose `command:` mirrors the Dockerfile's `CMD`, parameterised by `IOPAINT_MODEL`,

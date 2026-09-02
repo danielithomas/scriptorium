@@ -67,10 +67,64 @@ TORCH_CHECKPOINTS = TORCH_CACHE / "checkpoints"
 # The filename must match the URL basename — that is what IOPaint looks for.
 TORCH_HUB_MODELS = {
     "lama": {
-        "url": "https://github.com/Sanster/models/releases/download/add_big_lama/big-lama.pt",
-        "filename": "big-lama.pt",
+        "urls": ["https://github.com/Sanster/models/releases/download/add_big_lama/big-lama.pt"],
         "description": "LaMa inpainting — the stack's default model",
         "size_approx": "~196MB",
+        "default": True,
+    },
+}
+
+# Additional erase models IOPaint offers in its model picker. It fetches these
+# on demand at first use; pre-caching them here just avoids the mid-session wait.
+# URLs taken from the installed iopaint package, not guessed — several release
+# assets use .pth where the module name suggests .pt.
+ERASE_MODELS = {
+    "migan": {
+        "urls": ["https://github.com/Sanster/models/releases/download/migan/migan_traced.pt"],
+        "description": "MI-GAN — fast, good general-purpose object removal",
+        "size_approx": "~26MB",
+    },
+    "mat": {
+        "urls": ["https://github.com/Sanster/models/releases/download/add_mat/Places_512_FullData_G.pth"],
+        "description": "MAT — large-mask inpainting",
+        "size_approx": "~239MB",
+    },
+    "fcf": {
+        "urls": ["https://github.com/Sanster/models/releases/download/add_fcf/places_512_G.pth"],
+        "description": "FcF — good on structured scenes",
+        "size_approx": "~327MB",
+    },
+    "anime-lama": {
+        "urls": ["https://github.com/Sanster/models/releases/download/AnimeMangaInpainting/anime-manga-big-lama.pt"],
+        "description": "LaMa fine-tuned for anime / manga art",
+        "size_approx": "~196MB",
+    },
+    "manga": {
+        "urls": [
+            "https://github.com/Sanster/models/releases/download/manga/erika.jit",
+            "https://github.com/Sanster/models/releases/download/manga/manga_inpaintor.jit",
+        ],
+        "description": "Manga inpainting (2 files)",
+        "size_approx": "~235MB",
+    },
+    "zits": {
+        "urls": [
+            "https://github.com/Sanster/models/releases/download/add_zits/zits-edge-line-0717.pt",
+            "https://github.com/Sanster/models/releases/download/add_zits/zits-inpaint-0717.pt",
+            "https://github.com/Sanster/models/releases/download/add_zits/zits-structure-upsample-0717.pt",
+            "https://github.com/Sanster/models/releases/download/add_zits/zits-wireframe-0717.pt",
+        ],
+        "description": "ZITS — structure-aware, preserves lines and edges (4 files)",
+        "size_approx": "~373MB",
+    },
+    "ldm": {
+        "urls": [
+            "https://github.com/Sanster/models/releases/download/add_ldm/cond_stage_model_decode.pt",
+            "https://github.com/Sanster/models/releases/download/add_ldm/cond_stage_model_encode.pt",
+            "https://github.com/Sanster/models/releases/download/add_ldm/diffusion.pt",
+        ],
+        "description": "LDM — slower, diffusion-based erase (3 files)",
+        "size_approx": "~1.8GB",
     },
 }
 
@@ -138,25 +192,35 @@ def hf_repo_folder(repo_id: str) -> Path:
 # --------------------------------------------------------------------------- #
 
 def download_torch_hub_model(key: str, spec: dict, force: bool) -> bool:
-    save_path = TORCH_CHECKPOINTS / spec["filename"]
+    """Fetch every file a model needs. Returns True if anything was downloaded.
+
+    IOPaint looks these up by the URL's basename, so the filename on disk must
+    match the release asset name exactly — do not rename them.
+    """
     label = f"{spec['description']} ({spec['size_approx']})"
     print(f"\n  [{key}] {label}")
 
-    if save_path.exists() and not force:
-        print_skip(f"Already exists ({format_size(save_path.stat().st_size)})")
-        return False
+    downloaded_any = False
+    for url in spec["urls"]:
+        save_path = TORCH_CHECKPOINTS / url.rsplit("/", 1)[-1]
 
-    print_step(f"Downloading {spec['url']}…")
-    t0 = time.time()
-    tmp_path = save_path.with_suffix(save_path.suffix + ".part")
-    try:
-        urllib.request.urlretrieve(spec["url"], tmp_path)
-        tmp_path.replace(save_path)
-    except Exception:
-        tmp_path.unlink(missing_ok=True)
-        raise
-    print_ok(f"Saved ({format_size(save_path.stat().st_size)}) in {time.time() - t0:.0f}s")
-    return True
+        if save_path.exists() and not force:
+            print_skip(f"Already exists ({format_size(save_path.stat().st_size)}): {save_path.name}")
+            continue
+
+        print_step(f"Downloading {save_path.name}…")
+        t0 = time.time()
+        tmp_path = save_path.with_suffix(save_path.suffix + ".part")
+        try:
+            urllib.request.urlretrieve(url, tmp_path)
+            tmp_path.replace(save_path)
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            raise
+        print_ok(f"Saved ({format_size(save_path.stat().st_size)}) in {time.time() - t0:.0f}s")
+        downloaded_any = True
+
+    return downloaded_any
 
 
 def download_diffusers_model(repo_id: str, spec: dict, force: bool) -> bool:
@@ -204,6 +268,11 @@ value passed to docker compose.
         help="Model cache directory (default: $MODEL_DIR, else ./models)",
     )
     parser.add_argument(
+        "--erase-models", nargs="*", dest="erase_models", metavar="NAME",
+        help="Also pre-cache extra erase models. No names = all of them "
+             f"(~3.2GB). Available: {', '.join(ERASE_MODELS)}",
+    )
+    parser.add_argument(
         "--diffusers", action="store_true",
         help="Also download the diffusers inpainting models (~7GB)",
     )
@@ -233,6 +302,9 @@ value passed to docker compose.
         print_header("Torch hub models (default)")
         for key, spec in TORCH_HUB_MODELS.items():
             print(f"  {key:12s}  {spec['size_approx']:>8s}  {spec['description']}")
+        print_header("Extra erase models (--erase-models)")
+        for key, spec in ERASE_MODELS.items():
+            print(f"  {key:12s}  {spec['size_approx']:>8s}  {spec['description']}")
         print_header("Diffusers models (--diffusers)")
         for repo_id, spec in DIFFUSERS_MODELS.items():
             print(f"  {repo_id:52s}  {spec['size_approx']:>8s}  {spec['description']}")
@@ -256,6 +328,28 @@ value passed to docker compose.
         except Exception as exc:
             print_fail(f"{key}: {exc}")
             failed += 1
+
+    if args.erase_models is not None:
+        selected = args.erase_models or list(ERASE_MODELS)
+        unknown = [n for n in selected if n not in ERASE_MODELS]
+        if unknown:
+            print_fail(f"Unknown erase model(s): {', '.join(unknown)}")
+            print(f"  Available: {', '.join(ERASE_MODELS)}")
+            return 1
+        print_header("Extra erase models")
+        for key in selected:
+            try:
+                if download_torch_hub_model(key, ERASE_MODELS[key], args.force):
+                    downloaded += 1
+                else:
+                    skipped += 1
+            except Exception as exc:
+                print_fail(f"{key}: {exc}")
+                failed += 1
+    else:
+        print_header("Extra erase models")
+        print_skip("Not requested — add --erase-models to pre-cache them "
+                   "(IOPaint fetches them on demand otherwise)")
 
     if args.diffusers:
         print_header("Diffusers models")

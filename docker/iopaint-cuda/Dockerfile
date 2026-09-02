@@ -41,6 +41,13 @@ RUN python3 -c "import torch, torchvision; print('torch==' + torch.__version__);
     && pip install --no-cache-dir --retries 5 --timeout 120 -c /tmp/torch-constraint.txt \
        "iopaint${IOPAINT_VERSION:+==${IOPAINT_VERSION}}"
 
+# Diffusers-format SD inpainting models need these to build their tokenizer.
+# IOPaint's own dependencies do not pull them, so selecting an SD model in the UI
+# fails at load time with "requires the protobuf library but it was not found",
+# while the erase models (lama, migan, …) work fine — easy to miss.
+RUN pip install --no-cache-dir --retries 5 --timeout 120 -c /tmp/torch-constraint.txt \
+    protobuf sentencepiece
+
 # Fail the build — not the first inpaint — if the cu128 build was replaced.
 #
 # This checks the wheel metadata, NOT torch.cuda.get_arch_list(): that call needs
