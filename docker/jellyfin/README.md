@@ -6,8 +6,15 @@ Self-hosted media server with automatic subtitle management. Designed for Intel 
 
 | Service | Purpose | Port |
 |---------|---------|------|
-| **Jellyfin** | Media server — streaming, transcoding, metadata, client apps | 8096 |
+| **Jellyfin** | Media server — streaming, transcoding, metadata, client apps | 8096 (8920 HTTPS) |
 | **Bazarr** | Automatic subtitle downloads (OpenSubtitles, Subscene, etc.) | 6767 |
+
+Jellyfin also binds two fixed UDP ports on the host: **7359** for LAN client auto-discovery and
+**1900** for DLNA (used as a fallback by some TVs). Both are unconditional — if another DLNA server
+is already running on the host, that port will collide.
+
+Bazarr starts only after Jellyfin reports healthy (`depends_on: service_healthy`), so a failing
+Jellyfin healthcheck leaves Bazarr in `created` state rather than starting it.
 
 ## Quick Start
 
@@ -107,6 +114,7 @@ movies/
 | `CONFIG_PATH` | `/data/docker/jellyfin` | Persistent config storage |
 | `MEDIA_PATH` | `/data/media` | Root media directory |
 | `JELLYFIN_PORT` | `8096` | Web UI / API port |
+| `JELLYFIN_HTTPS_PORT` | `8920` | HTTPS port (optional — only used if TLS is configured in Jellyfin) |
 | `BAZARR_PORT` | `6767` | Bazarr web UI |
 | `TZ` | `Australia/Melbourne` | Timezone |
 | `PUID` / `PGID` | `1000` | File ownership user/group |

@@ -4,7 +4,7 @@ Multi-model image generation API using PyTorch + CUDA, with Real-ESRGAN upscalin
 
 ## Features
 
-- **Multiple models**: SD 1.5, DreamShaper 8, SDXL Turbo, SDXL 1.0, FLUX.1 Schnell/Dev, and more
+- **Multiple models**: SD 1.5, DreamShaper 8, SDXL Turbo, SDXL 1.0, FLUX.1 Schnell
 - **Auto-download**: Models download from HuggingFace on first use, then cache locally
 - **FP16 inference**: Half precision by default for faster generation and lower VRAM
 - **xformers**: Memory-efficient attention when available
@@ -12,7 +12,7 @@ Multi-model image generation API using PyTorch + CUDA, with Real-ESRGAN upscalin
 - **Aspect ratios**: square, wide (16:9), ultrawide (21:9), portrait
 - **Upscaling**: Real-ESRGAN 4x on GPU (supports target resolution, e.g. 3440×1440)
 - **Outpainting**: Extend images using inpainting pipeline
-- **LoRAs & Embeddings**: Extensible model registry with download script
+- **Asset downloader**: `download-models.py` fetches additional models, LoRAs and embeddings for use in other tools (e.g. [comfyui-cuda](../comfyui-cuda/))
 
 ## Requirements
 
@@ -83,25 +83,42 @@ Docker Compose reads `.env` automatically. The `.env` file is gitignored (machin
 
 ## Model Registry
 
-### Base Models
+Two registries exist and they are **not** the same list:
 
-| Model | Key | Steps | Quality | Speed (RTX 5080) | VRAM |
-|-------|-----|-------|---------|-------------------|------|
+- **`MODELS` in `server.py`** — what the API can actually serve. The `model` field of a request must be one of these keys; anything else returns a 400.
+- **`MODELS` / `LORAS` / `EMBEDDINGS` in `download-models.py`** — what can be fetched to disk. This is a superset, and doubles as the asset downloader for [comfyui-cuda](../comfyui-cuda/), which shares the same `loras/`, `embeddings/` and `upscaler/` directories.
+
+### Servable Models (API keys)
+
+| Model | API key | Steps | Quality | Speed (RTX 5080) | VRAM |
+|-------|---------|-------|---------|-------------------|------|
 | SD 1.5 | `sd15` | 20 | Good | ~2s | ~3GB |
 | DreamShaper 8 | `dreamshaper` | 25 | Great | ~3s | ~3GB |
-| Realistic Vision v6 | `realistic-vision` | 25 | Excellent (photo) | ~3s | ~3GB |
 | SDXL Turbo | `sdxl-turbo` | 4 | Good | ~5s | ~5GB |
 | SDXL 1.0 Base | `sdxl` | 30 | Excellent | ~12s | ~6GB |
-| SDXL Refiner | *post-process* | — | Enhancement | — | ~6GB |
-| Juggernaut XL v9 | `juggernaut-xl` | 30 | Exceptional (photo) | ~12s | ~6GB |
-| DreamShaper XL | `dreamshaper-xl` | 25 | Excellent | ~10s | ~6GB |
-| RealVisXL v4 | `realvis-xl` | 30 | Ultra-photo | ~12s | ~6GB |
 | FLUX.1 Schnell | `flux-schnell` | 4 | Excellent | ~5s | ~12GB |
-| FLUX.1 Dev | `flux-dev` | 20 | Best | ~30s | ~24GB |
+
+SD 1.5 Inpainting is loaded separately and automatically by `/outpaint` — it is not a `model` key.
+
+`GET /models` returns this list with per-model `local` (cached on disk) and `loaded` (in VRAM) flags.
+A model that is not cached locally is downloaded from HuggingFace on first use.
+
+### Additional Downloads (not servable by this API)
+
+`download-models.py` can also fetch the following. They are **not** in `server.py`'s registry — downloading one does not make it available to `/generate`; see [Adding New Models](#adding-new-models).
+
+| Download key | Notes |
+|--------------|-------|
+| `realistic-vision-6` | Realistic Vision v6 (SD 1.5 based, photo) |
+| `sdxl-refiner` | SDXL Refiner — a post-process stage, not a standalone model |
+| `juggernaut-xl` | Juggernaut XL v9 (SDXL, photo) |
+| `dreamshaper-xl` | DreamShaper XL |
+| `realvis-xl-4` | RealVisXL v4 (SDXL, ultra-photo) |
+| `flux-dev` | FLUX.1 Dev — ~24GB VRAM, exceeds a 16GB card |
 
 ### LoRAs (Lightweight Fine-Tunes)
 
-LoRAs modify a base model's output at inference time without needing a full model copy.
+Downloaded to `MODELS_PATH/loras/` for use in ComfyUI or other tooling. **The `image-gen-cuda` API does not apply LoRAs** — there is no LoRA parameter on `/generate`.
 
 | LoRA | Base Model | Source | Description |
 |------|-----------|--------|-------------|
@@ -111,7 +128,7 @@ LoRAs modify a base model's output at inference time without needing a full mode
 
 ### Embeddings (Textual Inversions)
 
-Tiny files (~25KB) that add concepts or fix common issues. Auto-downloaded by the script.
+Tiny files (~25KB) downloaded to `MODELS_PATH/embeddings/`. Like LoRAs, they are **not** loaded by this API — the negative-prompt tokens below only take effect in a tool that loads the embedding files (e.g. ComfyUI).
 
 | Embedding | Base Model | Usage (in negative prompt) |
 |-----------|-----------|---------------------------|
@@ -249,11 +266,19 @@ First generation with a new model includes a model load (~5–15s extra).
 
 ## Adding New Models
 
-1. Add the model to the `MODELS` dict in `download-models.py`
-2. Run the download script (it skips existing models): `python download-models.py --models <key>`
-3. The server auto-detects models in the `MODELS_PATH` directory on startup
-4. For LoRAs: add to `LORAS` dict, place `.safetensors` in `MODELS_PATH/loras/`
-5. For embeddings: add to `EMBEDDINGS` dict, place in `MODELS_PATH/embeddings/`
+Making a model servable takes **two** registry edits — the download script and the server do not share a registry:
+
+1. Add the model to the `MODELS` dict in `download-models.py` (HuggingFace id + local path)
+2. Download it (existing models are skipped): `python download-models.py <models-dir> --models <key>`
+3. Add a matching entry to the `MODELS` dict in `server.py` with `model_id`, `local_path`, `type`
+   (`sd15`, `sdxl` or `flux` — this selects the diffusers pipeline class), `description`,
+   `default_steps` and `default_guidance`
+4. Restart the container — `server.py` is bind-mounted, so no rebuild is needed
+
+Skipping step 3 means the weights sit on disk but `/generate` rejects the key.
+
+For LoRAs and embeddings, add to the `LORAS` / `EMBEDDINGS` dicts in `download-models.py`. They land in
+`MODELS_PATH/loras/` and `MODELS_PATH/embeddings/` for ComfyUI to consume; this API will not apply them.
 
 ## Comparison: OpenVINO vs CUDA
 
@@ -262,7 +287,9 @@ First generation with a new model includes a model load (~5–15s extra).
 | Target hardware | Intel CPU/iGPU/Arc | NVIDIA GPU |
 | Model format | OpenVINO IR (pre-converted) | Native PyTorch/Safetensors |
 | Auto-download | No (manual conversion) | Yes (HuggingFace) |
-| FLUX support | No | Yes |
-| LoRA support | No | Yes |
+| FLUX support | No | Yes (Schnell) |
+| LoRA support | No | Not at inference — downloader only |
 | Speed (SD 1.5) | ~67s (CPU) | **~2s** (RTX 5080) |
 | VRAM needed | N/A (CPU) | 3–12GB depending on model |
+
+Both expose the same endpoints on port 8100 and are drop-in replacements for one another.
