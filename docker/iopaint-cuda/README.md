@@ -61,7 +61,7 @@ Only download the diffusers models if you intend to change `IOPAINT_MODEL` — w
 
 ### 3. Build and launch
 
-The image is built locally (see [Blackwell note](#️-blackwell--rtx-50-series)), so the first run
+The image is built locally (see [why](#why-this-stack-builds-its-own-image)), so the first run
 compiles it — expect a few minutes and a large PyTorch download:
 
 ```bash
@@ -85,7 +85,7 @@ Access at **http://localhost:8110** (or whatever `IOPAINT_PORT` is set to).
 | `IOPAINT_EXTRA_ARGS` | _(empty)_ | Additional `iopaint start` CLI flags |
 | `IOPAINT_VERSION` | _(latest)_ | Build arg — pin the `iopaint` pip package to a specific version |
 
-## Models
+## Model Caches
 
 iopaint downloads models at startup if not already cached. The two bind mounts put those caches on
 the host at the exact paths the libraries read from inside the container:
@@ -187,31 +187,34 @@ Scanned from two locations only:
 - `<HF cache>/hub/**/*/model_index.json` — diffusers format
 - `<model dir>/stable_diffusion/*.safetensors|.ckpt` — single file
 
-`--diffusers` downloads complete ones into the first location. To reuse a diffusers model you
-**already have** elsewhere without a second copy, mount it read-only via `SD_INPAINT_PATH` — but two
-details matter, and both fail confusingly if you get them wrong:
-
-**1. The folder shape is load-bearing.** IOPaint names the model from the directory *three levels
-above* `model_index.json`, expecting HuggingFace's `models--<org>--<name>/snapshots/<ref>/` layout.
-Mount it flat and every model is named after the cache directory instead — and since the scan
-deduplicates by name, the second model you add is silently dropped.
-
-**2. It needs a `refs/<ref>` file.** The scan finds a model by globbing for `model_index.json`, but
-*loading* passes the model name through HuggingFace cache resolution, which reads `refs/`. Without
-it the model appears in the picker and then fails with "model is not cached locally". Create it
-alongside the mount — the file just contains the ref name:
+`--diffusers` downloads complete models into the first location as genuine HuggingFace cache
+entries. **This is the recommended route** — they load with no further setup:
 
 ```bash
-mkdir -p "<HF cache>/hub/models--local--sd15-inpainting/refs"
-printf 'main' > "<HF cache>/hub/models--local--sd15-inpainting/refs/main"
+python3 download-models.py --diffusers    # ~7GB
 ```
 
-**A model saved by `image-gen-cuda` needs two extra files.** Its downloader uses `save_pretrained`,
-which writes only the fast tokenizer (`tokenizer.json`). IOPaint's diffusers path builds the *slow*
-`CLIPTokenizer`, which needs `vocab.json` and `merges.txt` — without them the load fails with
-`TypeError: expected str, bytes or os.PathLike object, not NoneType`. Fetch the two files (~1.5MB)
-into the model's `tokenizer/` directory from the original repo on HuggingFace. They are additive and
-do not affect `image-gen-cuda`, which uses the fast tokenizer.
+### Reusing a model you already have (advanced)
+
+You can instead mount an existing diffusers directory read-only via `SD_INPAINT_PATH`, avoiding a
+second copy. It works, but depends on cache internals that HuggingFace does not document as an
+interface, and three separate details must all be right:
+
+1. **The folder shape is load-bearing.** IOPaint names the model from the directory *three levels
+   above* `model_index.json`, expecting `models--<org>--<name>/snapshots/<ref>/`. Mounted flat,
+   every model takes the cache directory's name — and the scan deduplicates by name, so the second
+   model you add is silently dropped.
+2. **A `refs/<ref>` file is required.** Scanning globs for `model_index.json`, but *loading*
+   resolves the name through the HuggingFace cache, which reads `refs/`. Without it the model
+   appears in the picker and then fails with "model is not cached locally".
+3. **A model saved by `image-gen-cuda` is missing tokenizer files.** Its downloader uses
+   `save_pretrained`, which writes only the fast tokenizer (`tokenizer.json`). IOPaint builds the
+   *slow* `CLIPTokenizer`, needing `vocab.json` and `merges.txt` — without them the load fails with
+   `TypeError: expected str, bytes or os.PathLike object, not NoneType`. Copy the two files
+   (~1.5MB) from the original repo into the model's `tokenizer/` directory; they are additive and
+   do not affect `image-gen-cuda`, which uses the fast tokenizer.
+
+Prefer `--diffusers` unless disk space genuinely rules it out.
 
 ## Container Command
 
