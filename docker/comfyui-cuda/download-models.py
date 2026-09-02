@@ -9,7 +9,7 @@ upscalers). ComfyUI uses separate component files for FLUX/HiDream/Qwen-Image
 
 Usage:
     python download-models.py [MODELS_DIR]
-    python download-models.py D:\\SD\\models
+    python download-models.py D:\\models
     python download-models.py /data/models --all
     python download-models.py --list
     python download-models.py /data/models --checkpoints    # SDXL checkpoint only

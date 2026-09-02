@@ -95,3 +95,44 @@ Default host ports in use: 80/443 caddy · 3001 uptime-kuma · 5001 dockge · 56
 
 - `main` is the default branch; all new work goes to `dev` and reaches `main` via PR
 - Commit messages are Conventional Commits scoped to the stack or script: `feat(slideshow-gen): narration-driven slide timing`, `fix(ollama): ...`
+
+### PII check — required before every `git add` and `git push`
+
+This is a public repo. **Run this sweep before staging or pushing, every time**, and fix what it
+finds before committing. Do not treat a clean `.gitignore` as sufficient — most of what leaks here
+is prose in READMEs and defaults in compose files, not stray files.
+
+```bash
+# Identity, host paths, network addresses
+git grep -nEi "danielithomas|Daniel Thomas|theenquiringmind|@(gmail|outlook|hotmail)" -- .
+git grep -nE  "C:\\\\Users\\\\|/home/[a-z][a-z0-9_-]+|/Users/[a-z]" -- .
+git grep -nE  "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b" -- .        # 0.0.0.0 / 127.0.0.1 are fine
+
+# Credentials
+git grep -nEi "(api[_-]?key|secret|password|token|credential)\s*[:=]\s*[\"']?\S{8,}" -- .
+git grep -nE  "hf_[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}" -- .
+
+# Host-specific config that should be a generic example.
+# Both patterns are deliberately narrow — the obvious broad versions drown in
+# false positives (registry hives HKLM:\… and IANA examples in prose).
+git grep -nE  "\b[C-Z]:[\\\\/]" -- . | grep -viE "HK(LM|CU|CR|U|CC):"   # drive paths
+git grep -nE  "TZ.?=.?[\"']?(Africa|America|Asia|Australia|Europe|Pacific)/" -- .  # TZ default
+
+# Files that should never be tracked (checks all history, not just HEAD)
+git log --all --pretty=format: --name-only --diff-filter=A | sort -u \
+  | grep -Ei "(^|/)\.env$|/data/|\.db$|\.sqlite|\.pem$|\.key$|id_rsa"
+git ls-files -ci --exclude-standard                          # ignored but tracked anyway
+```
+
+Beyond the greps, watch for **aggregation** — individually harmless details that compose into a
+personal profile. A timezone default, media-library folder names, example film titles and TTS
+language choices together identify a person's location, household and interests far more precisely
+than any one of them does. Judge the set, not the line.
+
+Fixes are always the same shape: replace with a neutral placeholder (`/path/to/models`,
+`Example Movie (2019)`, `TZ=UTC`, `server-name`) and keep the real value in `.env`, which is
+gitignored. Real values belong in commented examples only when the comment explains how to derive
+them for *your own* host (`getent group render`), never as the value itself.
+
+Exceptions that are fine: the committer identity in git metadata, and the `Co-Authored-By` /
+`Claude-Session` trailers.

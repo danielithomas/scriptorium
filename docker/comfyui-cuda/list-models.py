@@ -7,7 +7,7 @@ grouped by subdirectory, with file sizes.
 
 Usage:
     python list-models.py [MODELS_DIR]
-    python list-models.py D:\\SD\\models
+    python list-models.py D:\\models
     python list-models.py /data/models
 """
 

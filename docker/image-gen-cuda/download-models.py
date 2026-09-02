@@ -9,7 +9,7 @@ Usage:
     Set environment variable MODELS_PATH as an alternative.
 
 Examples:
-    python download-models.py D:\\SD\\models
+    python download-models.py D:\\models
     python download-models.py /data/models
     MODELS_PATH=/data/models python download-models.py
 
