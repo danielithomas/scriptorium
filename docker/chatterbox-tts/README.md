@@ -32,10 +32,15 @@ The web UI is available at `http://localhost:8004`.
 | CPU | `RUNTIME=cpu` | `device: cpu` | ~2 min per paragraph |
 | GPU | `RUNTIME=nvidia` | `device: cuda` | ~5 sec per paragraph |
 
-To switch modes:
-1. Update `RUNTIME` in `.env`
-2. Update `tts_engine.device` in `config.yaml`
-3. Rebuild: `docker compose up -d --build`
+To switch modes, all three steps are required:
+1. Set `RUNTIME=nvidia` in `.env` (installs the CUDA wheels at build time)
+2. Set `tts_engine.device: cuda` in `config.yaml`
+3. Uncomment the `deploy.resources.reservations.devices` block in `compose.yaml` — without it the
+   container is started with no GPU visible and quietly runs on CPU regardless of the other two settings
+4. Rebuild: `docker compose up -d --build`
+
+Requires [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+on the host. Verify the GPU is visible with `docker exec chatterbox-tts nvidia-smi`.
 
 ## Voice Cloning
 
