@@ -9,26 +9,24 @@ For diffusion-based outpainting and inpainting driven by prompts, see [comfyui-c
 - **NVIDIA GPU** (CUDA ≥ 11.8 recommended)
 - **Driver:** nvidia-container-toolkit configured
 
-### ⚠️ Blackwell / RTX 50-series: use `IOPAINT_DEVICE=cpu`
+### Why this stack builds its own image
 
-The `uiewy/iopaint` image ships **PyTorch 2.4.0+cu121**, which contains no `sm_120` kernels. On an
-RTX 5080/5090/5070 the container starts cleanly and `torch.cuda.is_available()` returns `True`, but
-every inference fails — verified on an RTX 5080:
+The common `uiewy/iopaint` image ships **PyTorch 2.4.0+cu121**, which contains no `sm_120` kernels.
+On Blackwell / RTX 50-series it starts cleanly and `torch.cuda.is_available()` returns `True` — then
+every inference fails, so the breakage only surfaces at request time:
 
 ```
 NVIDIA GeForce RTX 5080 with CUDA capability sm_120 is not compatible with the
-current PyTorch installation. The current PyTorch install supports CUDA
-capabilities sm_50 sm_60 sm_70 sm_75 sm_80 sm_86 sm_90.
+current PyTorch installation. Supports: sm_50 … sm_90.
 
 POST /api/v1/inpaint -> HTTP 500  RuntimeError (TorchScript interpreter)
 ```
 
-Set `IOPAINT_DEVICE=cpu` in `.env`. LaMa is small enough that CPU is genuinely usable — a 256×256
-inpaint completes in **~2.7s**, and the same request that 500s on CUDA returns a correct result.
+The `Dockerfile` here installs **PyTorch cu128** instead, which covers `sm_75` through `sm_120` —
+Blackwell and every earlier supported card. A build-time check fails the build if a dependency ever
+replaces that wheel, rather than letting it reach production and 500 at inference.
 
-This is the same constraint documented in [image-gen-cuda](../image-gen-cuda/), which solves it by
-building against PyTorch nightly + CUDA 12.8. Doing the same here needs a custom Dockerfile rather
-than the upstream image. Pre-Blackwell cards (sm_90 and below) work on `cuda` as-is.
+Measured on an RTX 5080 after the rebuild: the request above returns **HTTP 200 in ~244 ms** warm.
 
 ## Quick Start
 
@@ -61,11 +59,16 @@ requires `pip install huggingface-hub`.
 Only download the diffusers models if you intend to change `IOPAINT_MODEL` — with the default
 `lama` they are never loaded.
 
-### 3. Launch
+### 3. Build and launch
+
+The image is built locally (see [Blackwell note](#️-blackwell--rtx-50-series)), so the first run
+compiles it — expect a few minutes and a large PyTorch download:
 
 ```bash
-MODEL_DIR=/path/to/iopaint/models docker compose up -d
+MODEL_DIR=/path/to/iopaint/models docker compose up -d --build
 ```
+
+Subsequent starts reuse the built image and need no `--build`.
 
 Access at **http://localhost:8110** (or whatever `IOPAINT_PORT` is set to).
 
@@ -80,6 +83,7 @@ Access at **http://localhost:8110** (or whatever `IOPAINT_PORT` is set to).
 | `IOPAINT_MODEL` | `lama` | Model loaded at startup (lama, migan, zdiff, or a diffusers repo id) |
 | `IOPAINT_DEVICE` | `cuda` | Inference device — set `cpu` to run without a GPU |
 | `IOPAINT_EXTRA_ARGS` | _(empty)_ | Additional `iopaint start` CLI flags |
+| `IOPAINT_VERSION` | _(latest)_ | Build arg — pin the `iopaint` pip package to a specific version |
 
 ## Models
 
@@ -128,12 +132,41 @@ The HuggingFace cache layout uses symlinks and long directory names. If `--diffu
 enable Developer Mode so unprivileged symlink creation is allowed. The default LaMa download is a
 plain file copy and is unaffected.
 
+## Batch Workspace (file manager)
+
+Point IOPaint at a folder and the UI gains a file browser — work through images one at a time
+instead of uploading each one:
+
+```env
+IMAGES_PATH=/path/to/inbox
+OUTPUT_PATH=/path/to/processed
+IOPAINT_EXTRA_ARGS=--input=/images --output-dir=/output
+```
+
+Those mount to `/images` and `/output` in the container. Drop files into `IMAGES_PATH`, pick one in
+the browser, erase what you want, and save — the result lands in `OUTPUT_PATH`. The UI gets two
+tabs, input and output, so you can review what you've already produced.
+
+**The listing is a live filesystem glob** (`api_medias` → `glob_img` on every request), so images
+added while the server is running appear without a restart.
+
+Constraints worth knowing:
+
+| | |
+|---|---|
+| Formats | `.jpg`, `.jpeg`, `.png` only — anything else is silently skipped, not errored |
+| Depth | Top level only; subfolders are ignored |
+| `--output-dir` | Mandatory when `--input` is a directory — IOPaint refuses to start without it |
+| Side effect | A `thumbnails/` directory is created inside `OUTPUT_PATH` |
+
+Pointing `--input` at a single **file** instead of a directory pre-loads just that image, served via
+`GET /api/v1/inputimage`, and skips the file manager entirely.
+
 ## Container Command
 
-The image's entrypoint (`/opt/nvidia/nvidia_entrypoint.sh`) performs the CUDA environment setup, so
-the compose file overrides only the **arguments**, not the entrypoint. If you need to change how
-iopaint starts, adjust `IOPAINT_MODEL` / `IOPAINT_DEVICE` / `IOPAINT_EXTRA_ARGS` rather than
-replacing `entrypoint:` — doing so skips the NVIDIA setup.
+The compose `command:` mirrors the Dockerfile's `CMD`, parameterised by `IOPAINT_MODEL`,
+`IOPAINT_DEVICE` and `IOPAINT_EXTRA_ARGS`. The base image sets no `ENTRYPOINT`, so it runs directly —
+adjust those variables rather than editing the command.
 
 ## NVIDIA Runtime
 
