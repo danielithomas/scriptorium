@@ -10,3 +10,4 @@ services:
       - ${STACKS_DIR:-/data/docker}:/data/docker
     environment:
       - DOCKGE_STACKS_DIR=/data/docker
+      - DOCKGE_ENABLE_CONSOLE=${DOCKGE_ENABLE_CONSOLE:-false}
