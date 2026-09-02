@@ -1,0 +1,26 @@
+services:
+  iopaint:
+    image: uiewy/iopaint:latest
+    container_name: iopaint-cuda
+    restart: unless-stopped
+    ports:
+      - "${IOPAINT_PORT:-8110}:8080"
+    volumes:
+      # Model caches, at the default locations torch.hub and huggingface_hub
+      # read from. The container runs as root, so these are under /root/.cache.
+      #
+      # By default both derive from MODEL_DIR. Override them individually to
+      # point at caches shared with another stack — see .env.example.
+      - ${TORCH_CACHE_DIR:-${MODEL_DIR:?set MODEL_DIR, or both TORCH_CACHE_DIR and HF_CACHE_DIR}/torch}:/root/.cache/torch
+      - ${HF_CACHE_DIR:-${MODEL_DIR:?set MODEL_DIR, or both TORCH_CACHE_DIR and HF_CACHE_DIR}/huggingface}:/root/.cache/huggingface
+    # Only the arguments are overridden — the image's entrypoint
+    # (/opt/nvidia/nvidia_entrypoint.sh) sets up the CUDA environment and must
+    # not be replaced.
+    command: iopaint start --model=${IOPAINT_MODEL:-lama} --device=${IOPAINT_DEVICE:-cuda} --host=0.0.0.0 --port=8080 ${IOPAINT_EXTRA_ARGS:-}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
