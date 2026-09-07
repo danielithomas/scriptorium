@@ -1,0 +1,93 @@
+{
+  "_comment": "ComfyUI API-format workflow for HiDream-O1-Image Dev MXFP8 text-to-image. HiDream-O1 is a genuinely unified pixel-native ~8B model: its Qwen3-VL text backbone runs inside diffusion_model.* every sampling step, and its decoder is a pixel-space conversion VAE. So CheckpointLoaderSimple supplies MODEL, CLIP (a tokenizer-only TE) and VAE all three -- do NOT add a separate CLIPLoader, and do not load the Gemma-4 encoder here; that belongs to the optional prompt-refiner branch, not to this model. Uses the SamplerCustom chain because ModelNoiseScale sets the absolute training noise scale: 7.5 for Dev, 8.0 for base (8.0 is also the built-in default in comfy/supported_models.py). Steps 28 for Dev; base wants 40-50. Requires ComfyUI from 2026-05-12 or later. Width/height default to 1024 rather than the model's native 2048 because pixel-space generation has no VAE 8x downsample, so resolution costs far more VRAM here than with FLUX. HiDreamO1PatchSeamSmoothing (node 12) is included because a patch-based pixel transformer leaves a visible rectangular seam grid in flat texture -- wood grain, paper, bokeh. It runs extra offset passes over the last 20% of sampling and blends them, which measurably cleans that up; drop the node and rewire 8/9 to node 3 if you want raw speed. Replace PROMPT_TEXT, WIDTH, HEIGHT, SEED, and FILENAME_PREFIX as needed.",
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "hidream_o1_image_dev_mxfp8.safetensors"
+    }
+  },
+  "3": {
+    "class_type": "ModelNoiseScale",
+    "inputs": {
+      "model": ["1", 0],
+      "noise_scale": 7.5
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "PROMPT_TEXT",
+      "clip": ["1", 1]
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "",
+      "clip": ["1", 1]
+    }
+  },
+  "6": {
+    "class_type": "EmptyHiDreamO1LatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    }
+  },
+  "7": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "dpmpp_2m_sde_gpu"
+    }
+  },
+  "8": {
+    "class_type": "BasicScheduler",
+    "inputs": {
+      "model": ["12", 0],
+      "scheduler": "normal",
+      "steps": 28,
+      "denoise": 1.0
+    }
+  },
+  "9": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": ["12", 0],
+      "add_noise": true,
+      "noise_seed": 0,
+      "cfg": 5.0,
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "sampler": ["7", 0],
+      "sigmas": ["8", 0],
+      "latent_image": ["6", 0]
+    }
+  },
+  "10": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["9", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "11": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["10", 0],
+      "filename_prefix": "FILENAME_PREFIX"
+    }
+  },
+  "12": {
+    "class_type": "HiDreamO1PatchSeamSmoothing",
+    "inputs": {
+      "model": ["3", 0],
+      "start_percent": 0.8,
+      "end_percent": 1.0,
+      "pattern": "single_shift",
+      "passes": "2",
+      "blend": "average",
+      "strength": 1.0
+    }
+  }
+}

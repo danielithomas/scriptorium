@@ -1,6 +1,6 @@
 # ComfyUI — NVIDIA CUDA (Multi-Model)
 
-[ComfyUI](https://github.com/comfyanonymous/ComfyUI) node-based image generation with NVIDIA CUDA acceleration. Supports **FLUX.1-dev**, **FLUX.2-klein-9B**, **SDXL**, **FLUX.1-Kontext-dev**, **HiDream-I1**, and **Qwen-Image** on RTX 5080 / 16GB+ VRAM.
+[ComfyUI](https://github.com/comfyanonymous/ComfyUI) node-based image generation with NVIDIA CUDA acceleration. Supports **FLUX.1-dev**, **FLUX.2-klein-9B**, **SDXL**, **FLUX.1-Kontext-dev**, **HiDream-I1**, **HiDream-O1-Image**, and **Qwen-Image** on RTX 5080 / 16GB+ VRAM.
 
 ## Architecture
 
@@ -68,6 +68,8 @@ python download-models.py /path/to/models --kontext      # + FLUX.1-Kontext-dev 
 python download-models.py /path/to/models --hidream     # + HiDream-I1 Dev FP8 (~32GB)
 python download-models.py /path/to/models --hidream-gguf # + HiDream-I1 Dev GGUF Q5_K_M (~13.5GB, fits 16GB VRAM)
 python download-models.py /path/to/models --hidream-fast # + HiDream-I1 Fast FP8 (~17GB, 16 steps)
+python download-models.py /path/to/models --hidream-o1  # + HiDream-O1-Image Dev MXFP8 (~8.9GB, self-contained)
+python download-models.py /path/to/models --hidream-o1-base # + HiDream-O1-Image base MXFP8 (~8.9GB)
 python download-models.py /path/to/models --qwen-image  # + Qwen-Image FP8 (~29GB)
 python download-models.py /path/to/models --extras      # + embeddings, LoRAs, upscalers
 python download-models.py /path/to/models --all         # everything (~160GB+)
@@ -98,6 +100,8 @@ docker compose up -d --build
 | HiDream-I1 Dev (fp8) | UNet + 4×CLIP + VAE | ~32GB | `UNETLoader` + `QuadrupleCLIPLoader` | 17B DiT, requires 4 text encoders |
 | HiDream-I1 Dev (GGUF Q5_K_M) | UNet only¹ | ~13.5GB | `UnetLoaderGGUF` + `QuadrupleCLIPLoader` | Quantised HiDream — recommended for 16GB VRAM. Needs the [ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF) custom node |
 | HiDream-I1 Fast (fp8) | UNet only¹ | ~17GB | `UNETLoader` + `QuadrupleCLIPLoader` | Distilled 16-step HiDream variant |
+| HiDream-O1-Image Dev (mxfp8) | Checkpoint (all-in-one) | ~8.9GB | `CheckpointLoaderSimple` | 8B pixel-native unified model, 28 steps — **best quality-per-GB here for a 16GB Blackwell card** |
+| HiDream-O1-Image base (mxfp8) | Checkpoint (all-in-one) | ~8.9GB | `CheckpointLoaderSimple` | Undistilled, 40–50 steps — marginal quality gain for ~2x the sampling time |
 | Qwen-Image (fp8) | UNet + CLIP + VAE | ~29GB | `UNETLoader` + `CLIPLoader` | 20B MMDiT, excellent multilingual text |
 
 All FLUX models share the same CLIP-L, T5-XXL, and VAE components. SDXL is a self-contained checkpoint. HiDream uses 4 dedicated text encoders (CLIP-G, CLIP-L, T5-XXL, Llama-3.1-8B). Qwen-Image uses a single Qwen 2.5 VL 7B encoder.
@@ -158,6 +162,49 @@ Uses the same `clip/` and `vae/` components as FLUX.1-dev.
 
 Self-contained — includes UNet, text encoders, and VAE in a single file.
 
+### HiDream-O1-Image (`--hidream-o1`)
+
+| File | Location | Size | Description |
+|------|----------|------|-------------|
+| `hidream_o1_image_dev_mxfp8.safetensors` | `checkpoints/` | ~8.9GB | HiDream-O1-Image Dev, 28 steps |
+
+Add `--hidream-o1-base` for `hidream_o1_image_mxfp8.safetensors` (~8.9GB), the undistilled
+50-step model.
+
+Released May 2026 under the MIT licence, HiDream-O1-Image is a **pixel-native** ~8B unified
+model, and *unified* here is meant in the strong sense. Its Qwen3-VL text backbone runs inside
+`diffusion_model.*` on every sampling step, and its decoder is a pixel-space conversion VAE, so a
+single file supplies MODEL, CLIP and VAE through `CheckpointLoaderSimple` — one ~8.9GB download,
+against HiDream-I1's ~32GB of diffusion model plus four text encoders plus VAE.
+
+> **Do not pair this with a Gemma-4 text encoder.** The ComfyUI tutorial lists
+> `gemma4_e4b_it_fp8_scaled.safetensors` as a required text encoder, but that belongs to the
+> official template's *optional prompt-refiner* branch — not to the model.
+> `comfy/text_encoders/hidream_o1.py` describes itself as "tokenizer-only". Wiring a `CLIPLoader`
+> into `CLIPTextEncode` fails at sampling time with
+> `ValueError: not enough values to unpack (expected 4, got 1)`.
+
+**Why mxfp8 and not fp8.** MXFP8 is block-scaled FP8 — one scale factor per 32 weights instead of
+one per tensor — and Blackwell (RTX 50-series) implements it in hardware. On an RTX 5080 it is both
+higher quality than plain `fp8_scaled` and roughly 30% faster than bf16. On Ada (RTX 40-series) it
+must be dequantised on the fly and runs *slower*; swap the filename in `HIDREAM_O1_COMPONENTS` to
+`hidream_o1_image_dev_fp8_scaled.safetensors` (~8.1GB) on that hardware.
+
+**No GGUF variant is offered.** Unlike HiDream-I1, where GGUF is the only way to fit a 17B model in
+16GB, the published HiDream-O1 GGUFs are Q6_K (~9.9GB) and Q8_0 (~11GB) — both *larger* than mxfp8
+and without hardware acceleration. There is nothing to gain.
+
+**VRAM.** At ~8.9GB the checkpoint fits the 5080's 16GB with room to spare — there is no
+companion encoder to swap in and out, which is what makes this the most comfortable of the large
+models here. The constraint is resolution instead: pixel-space generation has no VAE 8×
+downsample, so pixels cost far more VRAM than with FLUX. Start at 1024×1024 and work up toward
+the model's native 2048×2048.
+
+**Requires ComfyUI from 2026-05-12 or later** ([PR #13817](https://github.com/Comfy-Org/ComfyUI/pull/13817))
+for the `EmptyHiDreamO1LatentImage`, `HiDreamO1ReferenceImages`, and `HiDreamO1PatchSeamSmoothing`
+nodes. No custom extension is needed — rebuild the image (`docker compose up -d --build`) to pull a
+new enough `master`.
+
 ### Extras (`--extras`)
 
 | File | Location | Size | Description |
@@ -208,6 +255,29 @@ Requires `--hidream` for the four text encoders and VAE.
 | `hidream-i1-dev-t2i.json` | 1024×1024 | 50 | Standard text-to-image |
 | `hidream-i1-dev-t2i-ultrawide.json` | 2560×1024 → 4x | 50 | Ultrawide + upscale |
 | `hidream-i1-dev-t2i-api-template.json` | 1024×1024 | 28 | API automation template |
+
+### HiDream-O1-Image
+
+Requires `--hidream-o1` for the checkpoint and the Gemma-4 encoder.
+
+| Workflow | Resolution | Steps | Use Case |
+|----------|-----------|-------|----------|
+| `hidream-o1-t2i-api-template.json` | 1024×1024 | 28 | API automation template |
+
+This template uses the `SamplerCustom` chain rather than `KSampler`, because HiDream-O1 needs
+`ModelNoiseScale` to set an absolute training noise scale: **7.5 for Dev, 8.0 for base**. Getting
+that value wrong is the most likely cause of washed-out or noisy output. Other settings follow the
+official ComfyUI template: `dpmpp_2m_sde_gpu` / `normal`, cfg 5.0. Point `ckpt_name` at
+`hidream_o1_image_mxfp8.safetensors` and raise steps to 40–50 to use the base model instead.
+
+It also includes `HiDreamO1PatchSeamSmoothing`. A patch-based pixel transformer leaves a faint
+rectangular seam grid across flat texture — wood grain, paper, out-of-focus background — and that
+node runs extra offset passes over the last 20% of sampling and blends them, which visibly cleans
+it up. Verified on an RTX 5080: 1024×1024, 28 steps, ~20s with the model resident (first run adds
+roughly 40s to load the checkpoint). Rewire nodes 8 and 9 back to node 3 to skip it.
+
+Note there is no separate text encoder node — `CLIPTextEncode` takes its CLIP from the checkpoint
+loader's second output. See the warning in the model files section above.
 
 ### Qwen-Image
 

@@ -3,9 +3,10 @@
 Download models for ComfyUI (CUDA).
 
 Supports FLUX.1-dev, FLUX.2-klein, SDXL, HiDream-I1, HiDream-I1 GGUF,
-HiDream-I1 Fast, Qwen-Image, and auxiliary models (embeddings, LoRAs,
-upscalers). ComfyUI uses separate component files for FLUX/HiDream/Qwen-Image
-(UNet/diffusion, CLIP, VAE) and single-file checkpoints for SD/SDXL.
+HiDream-I1 Fast, HiDream-O1-Image, Qwen-Image, and auxiliary models
+(embeddings, LoRAs, upscalers). ComfyUI uses separate component files for
+FLUX/HiDream-I1/Qwen-Image (UNet/diffusion, CLIP, VAE) and single-file
+checkpoints for SD/SDXL and HiDream-O1.
 
 Usage:
     python download-models.py [MODELS_DIR]
@@ -17,6 +18,8 @@ Usage:
     python download-models.py /data/models --hidream        # HiDream-I1 Dev FP8
     python download-models.py /data/models --hidream-gguf   # HiDream-I1 Dev GGUF (Q5_K_M)
     python download-models.py /data/models --hidream-fast   # HiDream-I1 Fast FP8 (16 steps)
+    python download-models.py /data/models --hidream-o1     # HiDream-O1 Dev MXFP8 (28 steps, self-contained)
+    python download-models.py /data/models --hidream-o1-base # HiDream-O1 base MXFP8 (50 steps)
     python download-models.py /data/models --qwen-image     # Qwen-Image FP8
 
 Requires: pip install huggingface-hub[cli]
@@ -341,6 +344,80 @@ HIDREAM_FAST_COMPONENTS = {
     },
 }
 
+# ─── HiDream-O1-Image Components ────────────────────────────────────────────
+# HiDream-O1-Image (May 2026, MIT) is a pixel-native Unified Transformer (~8B),
+# and it is unified in the strong sense: its Qwen3-VL text backbone runs inside
+# diffusion_model.* on every sampling step, and its decoder is a pixel-space
+# conversion VAE. One checkpoint therefore supplies MODEL, CLIP and VAE through
+# CheckpointLoaderSimple -- there is no companion text encoder or VAE to fetch,
+# and it loads from checkpoints/ rather than unet/ like the other DiTs here.
+#
+# Do not pair this with the Gemma-4 encoder. ComfyUI's tutorial lists
+# gemma4_e4b_it_fp8_scaled.safetensors as a required text encoder, but that
+# belongs to the official template's optional prompt-refiner branch, not to the
+# model: comfy/text_encoders/hidream_o1.py is explicitly "tokenizer-only".
+# Feeding a Gemma state dict to CLIPLoader fails at CLIPTextEncode with
+# "not enough values to unpack (expected 4, got 1)".
+#
+# Natively supported by ComfyUI since 2026-05-12 (Comfy-Org/ComfyUI#13817) --
+# nodes EmptyHiDreamO1LatentImage, HiDreamO1ReferenceImages and
+# HiDreamO1PatchSeamSmoothing. No custom extension required; rebuild the image
+# so the master clone is new enough to contain them.
+#
+# Precision choice matters on this hardware. mxfp8 is block-scaled FP8 (one
+# scale per 32 weights) with native Blackwell support -- on an RTX 50-series
+# card it is both higher quality than plain fp8_scaled and ~30% faster than
+# bf16. On Ada (RTX 40-series) it must be dequantised on the fly and runs
+# slower; use the fp8_scaled filename there instead.
+#
+# Available checkpoints (all from Comfy-Org/HiDream-O1-Image):
+#   hidream_o1_image_dev_mxfp8.safetensors        ~8.9GB  Blackwell, 28 steps
+#   hidream_o1_image_dev_fp8_scaled.safetensors   ~8.1GB  portable, 28 steps
+#   hidream_o1_image_dev_bf16.safetensors        ~16.4GB  full precision
+#   hidream_o1_image_mxfp8.safetensors            ~8.9GB  base, 50 steps
+#   hidream_o1_image_fp8_scaled.safetensors       ~8.1GB  base, 50 steps
+#   hidream_o1_image_bf16.safetensors            ~16.4GB  base, full precision
+#
+# GGUF is deliberately not offered: the only HiDream-O1 GGUFs are Q6_K (~9.9GB)
+# and Q8_0 (~11GB), both larger than mxfp8 and without hardware acceleration.
+# GGUF earns its place for the 17B HiDream-I1, not for this model.
+#
+# Source: https://huggingface.co/Comfy-Org/HiDream-O1-Image
+
+HIDREAM_O1_COMPONENTS = {
+    "hidream-o1-dev-mxfp8": {
+        "hf_repo": "Comfy-Org/HiDream-O1-Image",
+        "hf_file": "checkpoints/hidream_o1_image_dev_mxfp8.safetensors",
+        "subdir": "checkpoints",
+        "description": "HiDream-O1-Image Dev (MXFP8, 28 steps — Blackwell/RTX 50-series)",
+        "size_approx": "~8.9GB",
+        "required": True,
+        "gated": False,
+    },
+}
+
+# ─── HiDream-O1-Image Base Components ──────────────────────────────────────
+# The undistilled base model: 50 steps instead of Dev's 28, for a modest quality
+# gain at nearly double the sampling time. Self-contained like the Dev
+# checkpoint, so it can be downloaded on its own.
+#
+# Note the ModelNoiseScale difference when building workflows: base wants
+# noise_scale 8.0 (also the built-in default in comfy/supported_models.py),
+# Dev wants 7.5.
+# Source: https://huggingface.co/Comfy-Org/HiDream-O1-Image
+
+HIDREAM_O1_BASE_COMPONENTS = {
+    "hidream-o1-base-mxfp8": {
+        "hf_repo": "Comfy-Org/HiDream-O1-Image",
+        "hf_file": "checkpoints/hidream_o1_image_mxfp8.safetensors",
+        "subdir": "checkpoints",
+        "description": "HiDream-O1-Image base (MXFP8, 50 steps, undistilled)",
+        "size_approx": "~8.9GB",
+        "required": True,
+        "gated": False,
+    },
+}
+
 # ─── Qwen-Image Components ────────────────────────────────────────────────────
 # Qwen-Image is a 20B MMDiT model from Alibaba's Qwen team (Apache 2.0).
 # Excellent multilingual text rendering and diverse artistic styles.
@@ -579,6 +656,8 @@ Model groups:
   --hidream         HiDream-I1 Dev FP8 + text encoders (~32GB)
   --hidream-gguf    HiDream-I1 Dev GGUF Q5_K_M (~13.5GB, needs text encoders)
   --hidream-fast    HiDream-I1 Fast FP8 (~17GB, 16 steps, needs text encoders)
+  --hidream-o1      HiDream-O1 Dev MXFP8 (~8.9GB, self-contained)
+  --hidream-o1-base HiDream-O1 base MXFP8 (~8.9GB, self-contained)
   --qwen-image      Qwen-Image FP8 + VL encoder (~29GB)
   --extras          Embeddings, LoRAs, upscalers
   --all             Everything above
@@ -590,12 +669,24 @@ HiDream GGUF notes:
   Q4_K_M (~11GB), Q6_K (~14.7GB), Q8_0 (~17GB) — swap the filename in the
   HIDREAM_GGUF_COMPONENTS registry as needed.
 
+HiDream-O1 notes:
+  One self-contained checkpoint: the Qwen3-VL text backbone runs inside the
+  diffusion model and the decoder is a pixel-space VAE, so
+  CheckpointLoaderSimple yields MODEL, CLIP and VAE with no companion files.
+  Do not add the Gemma-4 encoder -- that is the optional prompt refiner.
+  Requires a ComfyUI build from 2026-05-12 or later. MXFP8 is chosen for
+  Blackwell (RTX 50-series) hardware support; on RTX 40-series swap to the
+  *_fp8_scaled.safetensors filename in HIDREAM_O1_COMPONENTS. Pixel-space
+  generation has no VAE 8x downsample, so resolution costs far more VRAM
+  than with FLUX -- start below the 2048x2048 native default.
+
 Model directory structure:
   models/
-  ├── checkpoints/    SD/SDXL single-file checkpoints
+  ├── checkpoints/    SD/SDXL + HiDream-O1 single-file checkpoints
   ├── unet/           FLUX/HiDream/Qwen-Image diffusion weights
   │                   (ComfyUI also maps diffusion_models/ → here)
-  ├── clip/           Text encoders (CLIP-L, CLIP-G, T5-XXL, Llama, Qwen VL)
+  ├── clip/           Text encoders (CLIP-L, CLIP-G, T5-XXL, Llama, Qwen VL,
+  │                   Gemma-4)
   ├── vae/            VAE / autoencoder
   ├── loras/          LoRA fine-tunes
   ├── embeddings/     Textual inversions
@@ -614,7 +705,7 @@ shared automatically.
     )
     parser.add_argument(
         "--all", action="store_true",
-        help="Download everything: FLUX.1-dev + SDXL + FLUX.2 + Kontext + HiDream + HiDream GGUF + HiDream Fast + Qwen-Image + extras",
+        help="Download everything: FLUX.1-dev + SDXL + FLUX.2 + Kontext + HiDream + HiDream GGUF + HiDream Fast + HiDream-O1 + Qwen-Image + extras",
     )
     parser.add_argument(
         "--flux", action="store_true", default=True,
@@ -649,6 +740,16 @@ shared automatically.
         "--hidream-fast", action="store_true", dest="hidream_fast",
         help="Download HiDream-I1 Fast FP8 diffusion model (~17GB, 16 steps). "
              "Text encoders/VAE shared with --hidream.",
+    )
+    parser.add_argument(
+        "--hidream-o1", action="store_true", dest="hidream_o1",
+        help="Download HiDream-O1-Image Dev (MXFP8, 28 steps, ~8.9GB). Self-contained: "
+             "no companion text encoder or VAE. Blackwell/RTX 50-series.",
+    )
+    parser.add_argument(
+        "--hidream-o1-base", action="store_true", dest="hidream_o1_base",
+        help="Download HiDream-O1-Image base (MXFP8, 50 steps, ~8.9GB). "
+             "Undistilled; self-contained like the Dev checkpoint.",
     )
     parser.add_argument(
         "--qwen-image", action="store_true", dest="qwen_image",
@@ -703,6 +804,16 @@ shared automatically.
 
         print_header("HiDream-I1 Fast FP8 (--hidream-fast or --all)")
         for key, c in HIDREAM_FAST_COMPONENTS.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
+        print_header("HiDream-O1-Image Dev MXFP8 (--hidream-o1 or --all)")
+        for key, c in HIDREAM_O1_COMPONENTS.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
+        print_header("HiDream-O1-Image base MXFP8 (--hidream-o1-base or --all)")
+        for key, c in HIDREAM_O1_BASE_COMPONENTS.items():
             gated = " [gated]" if c.get("gated") else ""
             print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
 
@@ -786,6 +897,20 @@ shared automatically.
         print_header("HiDream-I1 Fast FP8")
         print("  Note: text encoders/VAE shared with --hidream. Download those first.")
         d, s, f = download_registry(HIDREAM_FAST_COMPONENTS, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
+
+    # ── HiDream-O1-Image ──────────────────────────────────────────────────────
+    if args.all or args.hidream_o1:
+        print_header("HiDream-O1-Image Dev (MXFP8)")
+        print("  Note: needs ComfyUI from 2026-05-12 or later. Self-contained checkpoint.")
+        d, s, f = download_registry(HIDREAM_O1_COMPONENTS, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
+
+    # ── HiDream-O1-Image base ─────────────────────────────────────────────────
+    if args.all or args.hidream_o1_base:
+        print_header("HiDream-O1-Image base (MXFP8)")
+        print("  Note: undistilled, 40-50 steps. ModelNoiseScale 8.0 rather than 7.5.")
+        d, s, f = download_registry(HIDREAM_O1_BASE_COMPONENTS, models_dir, force=args.force)
         total_downloaded += d; total_skipped += s; total_failed += f
 
     # ── Qwen-Image ────────────────────────────────────────────────────────────
