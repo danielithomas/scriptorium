@@ -1,0 +1,75 @@
+{
+  "_comment": "ComfyUI API-format workflow for HiDream-I1 Dev GGUF (Q5_K_M) text-to-image. Same 17B DiT+MoE model as hidream-i1-dev-t2i-api-template.json, but the diffusion weights are Q5_K_M-quantised (~13.5GB rather than ~17GB), which is what makes HiDream-I1 fit a 16GB card without offloading. Only the UNet is quantised -- the four text encoders (clip-g, clip-l, t5xxl, llama-3.1-8b) stay safetensors and load through the ordinary QuadrupleCLIPLoader, so this needs --hidream for the encoders and VAE as well as --hidream-gguf for the checkpoint. Requires the ComfyUI-GGUF custom node (github.com/city96/ComfyUI-GGUF), which the Dockerfile installs; note that a pre-existing comfyui_custom_nodes volume shadows the image's copy, so if UnetLoaderGGUF is missing, remove that volume and recreate the stack rather than rebuilding. cfg must be 1.0 -- Dev is guidance-distilled and the official docs pass no negative prompt, so node 5 is inert but stays because KSampler requires a negative input. 28 steps matches the Dev schedule; the Fast variant wants 16. Unlike HiDream-O1, this is a latent-space model with a normal VAE, so 1024x1024 is its native resolution and there is no reason to raise it. Swap node 1 to UnetLoaderGGUFAdvanced if you need to control dequant_dtype/patch_dtype. Replace PROMPT_TEXT, WIDTH, HEIGHT, SEED, and FILENAME_PREFIX as needed.",
+  "1": {
+    "class_type": "UnetLoaderGGUF",
+    "inputs": {
+      "unet_name": "hidream-i1-dev-Q5_K_M.gguf"
+    }
+  },
+  "2": {
+    "class_type": "QuadrupleCLIPLoader",
+    "inputs": {
+      "clip_name1": "clip_g_hidream.safetensors",
+      "clip_name2": "clip_l_hidream.safetensors",
+      "clip_name3": "t5xxl_fp8_e4m3fn_scaled.safetensors",
+      "clip_name4": "llama_3.1_8b_instruct_fp8_scaled.safetensors"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "PROMPT_TEXT",
+      "clip": ["2", 0]
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "",
+      "clip": ["2", 0]
+    }
+  },
+  "6": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    }
+  },
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "latent_image": ["6", 0],
+      "seed": 0,
+      "steps": 28,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1.0
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["7", 0],
+      "vae": ["3", 0]
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["8", 0],
+      "filename_prefix": "FILENAME_PREFIX"
+    }
+  }
+}
