@@ -196,14 +196,27 @@ and without hardware acceleration. There is nothing to gain.
 
 **VRAM.** At ~8.9GB the checkpoint fits the 5080's 16GB with room to spare — there is no
 companion encoder to swap in and out, which is what makes this the most comfortable of the large
-models here. The constraint is resolution instead: pixel-space generation has no VAE 8×
-downsample, so pixels cost far more VRAM than with FLUX. Start at 1024×1024 and work up toward
-the model's native 2048×2048.
+models here.
+
+**Run it at 2048×2048.** This is the one setting that matters most on this model, and getting it
+wrong is not a subtle loss. O1 patchifies raw RGB at `patch_size=32` with no VAE, so resolution
+sets the token budget directly: 1024×1024 gives `(1024/32)² = 1024` tokens, a **quarter** of what
+FLUX.2 gets at the same output size (VAE downscale 16 × patch 1 → 4096 tokens). It is also below
+every bucket O1 was trained on — ~4MP: 2048×2048, 2304×1728, 2304×1792, 2496×1664, 2560×1440,
+3104×1312 and their portrait transposes. ComfyUI's own `EmptyHiDreamO1LatentImage` help says
+lower resolutions "go off-distribution and quality regresses noticeably", and defaults to 2048.
+
+Generating at 1024×1024 is what makes O1 look like a weak SDXL rather than a model that
+outscores FLUX.2 [Dev] on GenEval and DPG-Bench. Measured on an RTX 5080 at cfg 1.0, 28 steps:
+2048×2048 takes **~28s** with the model resident and peaks around **11.7GB of 16GB** — so the
+native resolution is comfortably affordable here. Reduce it only when VRAM forces you to, and
+expect visibly softer, less detailed output when you do.
 
 **Requires ComfyUI from 2026-05-12 or later** ([PR #13817](https://github.com/Comfy-Org/ComfyUI/pull/13817))
 for the `EmptyHiDreamO1LatentImage`, `HiDreamO1ReferenceImages`, and `HiDreamO1PatchSeamSmoothing`
-nodes. No custom extension is needed — rebuild the image (`docker compose up -d --build`) to pull a
-new enough `master`.
+nodes. No custom extension is needed — rebuild with
+`docker compose build --no-cache comfyui` to pull a new enough `master`. The `git clone` is a
+cached Docker layer, so a plain `up -d --build` will happily reuse an old clone.
 
 ### Extras (`--extras`)
 
@@ -258,23 +271,36 @@ Requires `--hidream` for the four text encoders and VAE.
 
 ### HiDream-O1-Image
 
-Requires `--hidream-o1` for the checkpoint and the Gemma-4 encoder.
+Requires `--hidream-o1`. The checkpoint is self-contained — there is no text encoder or VAE to
+download.
 
 | Workflow | Resolution | Steps | Use Case |
 |----------|-----------|-------|----------|
-| `hidream-o1-t2i-api-template.json` | 1024×1024 | 28 | API automation template |
+| `hidream-o1-t2i-api-template.json` | 2048×2048 | 28 | API automation template |
 
 This template uses the `SamplerCustom` chain rather than `KSampler`, because HiDream-O1 needs
-`ModelNoiseScale` to set an absolute training noise scale: **7.5 for Dev, 8.0 for base**. Getting
-that value wrong is the most likely cause of washed-out or noisy output. Other settings follow the
-official ComfyUI template: `dpmpp_2m_sde_gpu` / `normal`, cfg 5.0. Point `ckpt_name` at
-`hidream_o1_image_mxfp8.safetensors` and raise steps to 40–50 to use the base model instead.
+`ModelNoiseScale` to set an absolute training noise scale: **7.6 for Dev, 8.0 for base**. Getting
+that value wrong is the most likely cause of washed-out or noisy output. The rest tracks the
+official *Dev* template: `SamplerLCM` (1.0 / 1.0 / 2.5), `normal` scheduler, and **cfg 1.0** — Dev
+is guidance-distilled, so a higher cfg does not merely waste time, it overcooks the image. Measured
+at 2048×2048 on a 16GB 5080, cfg 5.0 gave blown highlights, chromatic speckle across flat texture
+and invented clutter, while running **~50× slower** (44–51 s/step against ~1.0 s/step, peaking
+15.7GB of 16.3GB): ComfyUI only skips the uncond pass at exactly 1.0, and at 2048 the doubled batch
+no longer fits. Point `ckpt_name` at
+`hidream_o1_image_mxfp8.safetensors` and raise steps to 40–50 to use the base model instead — base
+is not distilled, so also swap node 7 back to `KSamplerSelect` / `dpmpp_2m_sde_gpu` and set
+cfg 5.0 and noise scale 8.0, matching the official Full template.
 
 It also includes `HiDreamO1PatchSeamSmoothing`. A patch-based pixel transformer leaves a faint
 rectangular seam grid across flat texture — wood grain, paper, out-of-focus background — and that
 node runs extra offset passes over the last 20% of sampling and blends them, which visibly cleans
-it up. Verified on an RTX 5080: 1024×1024, 28 steps, ~20s with the model resident (first run adds
-roughly 40s to load the checkpoint). Rewire nodes 8 and 9 back to node 3 to skip it.
+it up. The official Dev template omits this node and the Full template runs it with
+`passes: ramp_2_4` / `blend: median`; the values here were the ones verified on an RTX 5080.
+Rewire nodes 8 and 9 back to node 3 to skip it.
+
+Timings on an RTX 5080 at the template's settings (cfg 1.0, 28 steps, seam smoothing on):
+**2048×2048 in ~28s** with the model resident, plus roughly 180s on the first run to load the
+checkpoint from disk.
 
 Note there is no separate text encoder node — `CLIPTextEncode` takes its CLIP from the checkpoint
 loader's second output. See the warning in the model files section above.

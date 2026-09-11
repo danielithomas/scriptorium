@@ -403,7 +403,7 @@ HIDREAM_O1_COMPONENTS = {
 #
 # Note the ModelNoiseScale difference when building workflows: base wants
 # noise_scale 8.0 (also the built-in default in comfy/supported_models.py),
-# Dev wants 7.5.
+# Dev wants 7.6.
 # Source: https://huggingface.co/Comfy-Org/HiDream-O1-Image
 
 HIDREAM_O1_BASE_COMPONENTS = {
@@ -909,7 +909,7 @@ shared automatically.
     # ── HiDream-O1-Image base ─────────────────────────────────────────────────
     if args.all or args.hidream_o1_base:
         print_header("HiDream-O1-Image base (MXFP8)")
-        print("  Note: undistilled, 40-50 steps. ModelNoiseScale 8.0 rather than 7.5.")
+        print("  Note: undistilled, 40-50 steps. ModelNoiseScale 8.0 rather than 7.6.")
         d, s, f = download_registry(HIDREAM_O1_BASE_COMPONENTS, models_dir, force=args.force)
         total_downloaded += d; total_skipped += s; total_failed += f
 
