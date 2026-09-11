@@ -268,6 +268,29 @@ Requires `--hidream` for the four text encoders and VAE.
 | `hidream-i1-dev-t2i.json` | 1024×1024 | 50 | Standard text-to-image |
 | `hidream-i1-dev-t2i-ultrawide.json` | 2560×1024 → 4x | 50 | Ultrawide + upscale |
 | `hidream-i1-dev-t2i-api-template.json` | 1024×1024 | 28 | API automation template |
+| `hidream-i1-dev-gguf-t2i-api-template.json` | 1024×1024 | 28 | API automation, Q5_K_M quantised |
+
+The GGUF template is the same 17B model with the diffusion weights quantised to Q5_K_M (~13.5GB
+rather than ~17GB), which is what lets HiDream-I1 run on a 16GB card without offloading — measured
+peak **14.5GB of 16.3GB** on an RTX 5080, 1024×1024 at 28 steps. Only the UNet is quantised; the
+four text encoders stay safetensors and load through the ordinary `QuadrupleCLIPLoader`, so it needs
+`--hidream-gguf` **and** `--hidream` (for the encoders and VAE).
+
+It loads through `UnetLoaderGGUF`, from the
+[ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF) custom node that the Dockerfile installs. If
+that node is missing, the cause is almost certainly a pre-existing `comfyui_custom_nodes` volume
+shadowing the image's copy — Docker seeds a named volume from the image only when it is first
+created, so a volume made before the extension was added to the Dockerfile keeps the old, empty
+contents indefinitely. **Rebuilding does not fix it.** Remove the volume and recreate the stack:
+
+```bash
+docker compose down
+docker volume rm comfyui-cuda_comfyui_custom_nodes
+docker compose up -d
+```
+
+That volume holds only ComfyUI's stock example files, so nothing of yours is lost. Verify with
+`curl -s localhost:8188/object_info/UnetLoaderGGUF` — an empty object means it is still missing.
 
 ### HiDream-O1-Image
 
