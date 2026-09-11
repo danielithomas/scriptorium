@@ -305,6 +305,42 @@ checkpoint from disk.
 Note there is no separate text encoder node — `CLIPTextEncode` takes its CLIP from the checkpoint
 loader's second output. See the warning in the model files section above.
 
+#### Dev vs Dev-2604
+
+`--hidream-o1` fetches the original Dev checkpoint (8 May 2026). There is a second, later release —
+**Dev-2604** (14 May 2026), tuned specifically for text-to-image, where the original Dev is the
+general unified model that also covers editing and personalisation. Dev-2604 is the checkpoint
+behind the "leading open-weights text-to-image model" coverage, so it is the one most reviews are
+actually describing. `--hidream-o1-2604` fetches it.
+
+Getting it into ComfyUI is the awkward part. **Comfy-Org has never packaged 2604**, and no scaled
+quantisation of it exists on HuggingFace — only bf16/fp16, plus one unscaled fp8 that is not worth
+using (raw `F8_E4M3` with no `weight_scale` tensors, which would cost more than 2604 gains and
+confound any comparison). The registry therefore points at a third-party single-file bf16
+repackaging, checked against Comfy-Org's own layout before being added: identical 758-tensor key
+set, zero shape mismatches, and native unpadded vision dims of 4304 matching ComfyUI's built-in
+default. It loads through `CheckpointLoaderSimple` unchanged — swap `ckpt_name` and nothing else.
+
+Measured on an RTX 5080 at 2048×2048, 28 steps, against the Dev mxfp8 baseline:
+
+| | Dev mxfp8 (~8.9GB) | Dev-2604 bf16 (~16.4GB) |
+|---|---|---|
+| First image, cold load | ~210s | ~61s |
+| Subsequent images | ~27s | ~33–36s |
+| Peak VRAM | ~11.7GB | ~13.9GB |
+
+Despite exceeding the card's 16GB on paper, partial offload costs only about 25% — it is usable,
+not the minutes-per-image that the file size suggests.
+
+**Quality was a wash in testing, so the stack still defaults to the original Dev.** Across three
+matched prompts at one seed, Dev held a clear lead on portrait skin texture, 2604 held a clear lead
+on macro subject rendering, and typography split (Dev richer scene, 2604 cleaner subject). Three
+caveats before treating that as settled: the sample is tiny; the workflow's `noise_scale`, sampler
+and seam-smoothing values all come from the official *Dev* template and may simply be wrong for
+2604, which has no official template; and 2604 is designed to be driven by its Prompt Agent
+(`HiDream-ai/Prompt-Refine`, served over vLLM), which the published rankings almost certainly used
+and which none of this testing did.
+
 ### Qwen-Image
 
 Strong multilingual text rendering — the best choice when the image must contain legible words.
