@@ -20,6 +20,7 @@ Usage:
     python download-models.py /data/models --hidream-fast   # HiDream-I1 Fast FP8 (16 steps)
     python download-models.py /data/models --hidream-o1     # HiDream-O1 Dev MXFP8 (28 steps, self-contained)
     python download-models.py /data/models --hidream-o1-base # HiDream-O1 base MXFP8 (50 steps)
+    python download-models.py /data/models --hidream-o1-2604 # HiDream-O1 Dev-2604 BF16 (t2i-tuned, 16.4GB)
     python download-models.py /data/models --qwen-image     # Qwen-Image FP8
 
 Requires: pip install huggingface-hub[cli]
@@ -403,7 +404,7 @@ HIDREAM_O1_COMPONENTS = {
 #
 # Note the ModelNoiseScale difference when building workflows: base wants
 # noise_scale 8.0 (also the built-in default in comfy/supported_models.py),
-# Dev wants 7.5.
+# Dev wants 7.6.
 # Source: https://huggingface.co/Comfy-Org/HiDream-O1-Image
 
 HIDREAM_O1_BASE_COMPONENTS = {
@@ -413,6 +414,39 @@ HIDREAM_O1_BASE_COMPONENTS = {
         "subdir": "checkpoints",
         "description": "HiDream-O1-Image base (MXFP8, 50 steps, undistilled)",
         "size_approx": "~8.9GB",
+        "required": True,
+        "gated": False,
+    },
+}
+
+# ─── HiDream-O1-Image Dev-2604 Components ────────────────────────────────────
+# Dev-2604 (14 May 2026) is a separate release of the Dev checkpoint tuned
+# specifically for text-to-image; the original Dev is the general unified model
+# covering editing and personalisation too. It is the checkpoint behind the
+# "leading open-weights text-to-image model" coverage, and it is NOT the same
+# weights as hidream_o1_image_dev_mxfp8.safetensors.
+#
+# Comfy-Org has never packaged 2604, and no scaled quantisation of it exists
+# anywhere on HuggingFace -- only bf16/fp16, plus one unscaled fp8 that is not
+# worth using (raw F8_E4M3 with no weight_scale tensors loses more than 2604
+# gains, and would confound any quality comparison). The file below is a
+# third-party single-file repackaging, verified byte-compatible with Comfy-Org's
+# own layout: identical 758-tensor key set, zero shape mismatches, and native
+# unpadded vision dims of 4304 matching ComfyUI's built-in default. It loads
+# through CheckpointLoaderSimple with no conversion.
+#
+# Deliberately excluded from --all. At 16.37GB it does not fit a 16GB card, so
+# ComfyUI falls back to partial weight offload and sampling drops to minutes per
+# image. Treat it as an evaluation checkpoint unless you have >=24GB.
+# Source: https://huggingface.co/bdsqlsz/HiDream-O1-Image-Dev-2604-Single
+
+HIDREAM_O1_2604_COMPONENTS = {
+    "hidream-o1-dev-2604-bf16": {
+        "hf_repo": "bdsqlsz/HiDream-O1-Image-Dev-2604-Single",
+        "hf_file": "hidream_o1_image_dev_2604_bf16.safetensors",
+        "subdir": "checkpoints",
+        "description": "HiDream-O1-Image Dev-2604 (BF16, 28 steps, t2i-tuned; needs >=24GB VRAM)",
+        "size_approx": "~16.4GB",
         "required": True,
         "gated": False,
     },
@@ -658,6 +692,7 @@ Model groups:
   --hidream-fast    HiDream-I1 Fast FP8 (~17GB, 16 steps, needs text encoders)
   --hidream-o1      HiDream-O1 Dev MXFP8 (~8.9GB, self-contained)
   --hidream-o1-base HiDream-O1 base MXFP8 (~8.9GB, self-contained)
+  --hidream-o1-2604 HiDream-O1 Dev-2604 BF16 (~16.4GB, t2i-tuned, not in --all)
   --qwen-image      Qwen-Image FP8 + VL encoder (~29GB)
   --extras          Embeddings, LoRAs, upscalers
   --all             Everything above
@@ -752,6 +787,11 @@ shared automatically.
              "Undistilled; self-contained like the Dev checkpoint.",
     )
     parser.add_argument(
+        "--hidream-o1-2604", action="store_true", dest="hidream_o1_2604",
+        help="Download HiDream-O1-Image Dev-2604 (BF16, 28 steps, ~16.4GB). Text-to-image "
+             "tuned re-release of Dev. Not included in --all: exceeds a 16GB card.",
+    )
+    parser.add_argument(
         "--qwen-image", action="store_true", dest="qwen_image",
         help="Download Qwen-Image (FP8) with Qwen 2.5 VL encoder (~29GB total)",
     )
@@ -814,6 +854,11 @@ shared automatically.
 
         print_header("HiDream-O1-Image base MXFP8 (--hidream-o1-base or --all)")
         for key, c in HIDREAM_O1_BASE_COMPONENTS.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
+        print_header("HiDream-O1-Image Dev-2604 BF16 (--hidream-o1-2604, not in --all)")
+        for key, c in HIDREAM_O1_2604_COMPONENTS.items():
             gated = " [gated]" if c.get("gated") else ""
             print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
 
@@ -909,8 +954,17 @@ shared automatically.
     # ── HiDream-O1-Image base ─────────────────────────────────────────────────
     if args.all or args.hidream_o1_base:
         print_header("HiDream-O1-Image base (MXFP8)")
-        print("  Note: undistilled, 40-50 steps. ModelNoiseScale 8.0 rather than 7.5.")
+        print("  Note: undistilled, 40-50 steps. ModelNoiseScale 8.0 rather than 7.6.")
         d, s, f = download_registry(HIDREAM_O1_BASE_COMPONENTS, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
+
+    # ── HiDream-O1-Image Dev-2604 ─────────────────────────────────────────────
+    # Not part of --all: 16.4GB bf16 needs >=24GB VRAM to run without offload.
+    if args.hidream_o1_2604:
+        print_header("HiDream-O1-Image Dev-2604 (BF16)")
+        print("  Note: text-to-image tuned re-release of Dev, 28 steps, ModelNoiseScale 7.6.")
+        print("  Note: 16.4GB bf16 - on a 16GB card ComfyUI offloads and sampling takes minutes.")
+        d, s, f = download_registry(HIDREAM_O1_2604_COMPONENTS, models_dir, force=args.force)
         total_downloaded += d; total_skipped += s; total_failed += f
 
     # ── Qwen-Image ────────────────────────────────────────────────────────────

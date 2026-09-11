@@ -1,5 +1,5 @@
 {
-  "_comment": "ComfyUI API-format workflow for HiDream-O1-Image Dev MXFP8 text-to-image. HiDream-O1 is a genuinely unified pixel-native ~8B model: its Qwen3-VL text backbone runs inside diffusion_model.* every sampling step, and its decoder is a pixel-space conversion VAE. So CheckpointLoaderSimple supplies MODEL, CLIP (a tokenizer-only TE) and VAE all three -- do NOT add a separate CLIPLoader, and do not load the Gemma-4 encoder here; that belongs to the optional prompt-refiner branch, not to this model. Uses the SamplerCustom chain because ModelNoiseScale sets the absolute training noise scale: 7.5 for Dev, 8.0 for base (8.0 is also the built-in default in comfy/supported_models.py). Steps 28 for Dev; base wants 40-50. Requires ComfyUI from 2026-05-12 or later. Width/height default to 1024 rather than the model's native 2048 because pixel-space generation has no VAE 8x downsample, so resolution costs far more VRAM here than with FLUX. HiDreamO1PatchSeamSmoothing (node 12) is included because a patch-based pixel transformer leaves a visible rectangular seam grid in flat texture -- wood grain, paper, bokeh. It runs extra offset passes over the last 20% of sampling and blends them, which measurably cleans that up; drop the node and rewire 8/9 to node 3 if you want raw speed. Replace PROMPT_TEXT, WIDTH, HEIGHT, SEED, and FILENAME_PREFIX as needed.",
+  "_comment": "ComfyUI API-format workflow for HiDream-O1-Image Dev MXFP8 text-to-image. HiDream-O1 is a genuinely unified pixel-native ~8B model: its Qwen3-VL text backbone runs inside diffusion_model.* every sampling step, and its decoder is a pixel-space conversion VAE. So CheckpointLoaderSimple supplies MODEL, CLIP (a tokenizer-only TE) and VAE all three -- do NOT add a separate CLIPLoader, and do not load the Gemma-4 encoder here; in the official template that encoder sits inside a 'Prompt Enhancement' subgraph driving a TextGenerate node, i.e. it is an optional LLM prompt rewriter, not this model's text encoder. Settings track the official Dev template (Comfy-Org/workflow_templates, image_hidream_o1_dev.json): SamplerLCM rather than KSamplerSelect, and cfg 1.0 -- Dev is guidance-distilled, so cfg above 1.0 does not just waste time, it overcooks: measured at 2048x2048 on a 16GB RTX 5080, cfg 5.0 produced blown highlights, chromatic speckle and invented clutter, and ran ~50x slower (44-51 s/step vs ~1.0, peaking 15.7GB of 16.3GB) because ComfyUI only skips the uncond pass at exactly 1.0 and the doubled batch no longer fits. Node 5 is therefore inert; it stays because SamplerCustom requires a negative input. The SamplerCustom chain is needed so ModelNoiseScale can set the absolute training noise scale: 7.6 for Dev, 8.0 for base (8.0 is also the built-in default in comfy/supported_models.py). For the base model, point ckpt_name at hidream_o1_image_mxfp8.safetensors and follow the official Full template instead: KSamplerSelect / dpmpp_2m_sde_gpu, cfg 5.0, 40 steps, noise_scale 8.0. Requires ComfyUI from 2026-05-12 or later (PR #13817), which added both the HiDreamO1* nodes and SamplerLCM. Width/height default to 2048x2048, matching both official templates and the node's own default -- this is the single biggest quality lever on the model, not a preference. HiDream-O1 patchifies raw RGB at patch_size=32 with no VAE, so 1024x1024 yields only (1024/32)^2 = 1024 tokens: a quarter of what FLUX.2 (VAE downscale 16, patch_size 1) gets at the same output size, and below every ~4MP bucket the model was trained on. EmptyHiDreamO1LatentImage's own help text says lower resolutions 'go off-distribution and quality regresses noticeably'. Measured on an RTX 5080: 2048x2048 is ~28s with the model resident, peaking ~11.7GB of 16GB. Reduce only if VRAM forces it, and expect visibly softer, less detailed output when you do. HiDreamO1PatchSeamSmoothing (node 12) is included because a patch-based pixel transformer leaves a visible rectangular seam grid in flat texture -- wood grain, paper, bokeh. It runs extra offset passes over the last 20% of sampling and blends them, which measurably cleans that up; the official Dev template omits the node and the Full template runs it with passes ramp_2_4 / blend median. Drop the node and rewire 8/9 to node 3 if you want raw speed. Replace PROMPT_TEXT, WIDTH, HEIGHT, SEED, and FILENAME_PREFIX as needed.",
   "1": {
     "class_type": "CheckpointLoaderSimple",
     "inputs": {
@@ -10,7 +10,7 @@
     "class_type": "ModelNoiseScale",
     "inputs": {
       "model": ["1", 0],
-      "noise_scale": 7.5
+      "noise_scale": 7.6
     }
   },
   "4": {
@@ -30,15 +30,17 @@
   "6": {
     "class_type": "EmptyHiDreamO1LatentImage",
     "inputs": {
-      "width": 1024,
-      "height": 1024,
+      "width": 2048,
+      "height": 2048,
       "batch_size": 1
     }
   },
   "7": {
-    "class_type": "KSamplerSelect",
+    "class_type": "SamplerLCM",
     "inputs": {
-      "sampler_name": "dpmpp_2m_sde_gpu"
+      "s_noise": 1.0,
+      "s_noise_end": 1.0,
+      "noise_clip_std": 2.5
     }
   },
   "8": {
@@ -56,7 +58,7 @@
       "model": ["12", 0],
       "add_noise": true,
       "noise_seed": 0,
-      "cfg": 5.0,
+      "cfg": 1.0,
       "positive": ["4", 0],
       "negative": ["5", 0],
       "sampler": ["7", 0],
