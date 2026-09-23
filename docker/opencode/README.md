@@ -53,9 +53,23 @@ OLLAMA_NETWORK=my_ollama_network
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `WORKSPACE_PATH` | `./workspace` | Host path mounted as the coding workspace |
-| `OLLAMA_HOST` | `http://ollama:11434` | Ollama API endpoint (container name on shared network) |
-| `OLLAMA_NETWORK` | `ollama_default` | Docker network shared with Ollama |
+Two groups, both in the same `.env`. The first are read by **compose**; the rest
+are passed **into the container** by `env_file: .env` and are what OpenCode
+itself reads.
+
+| Variable | Read by | Default | Description |
+|----------|---------|---------|-------------|
+| `WORKSPACE_PATH` | compose | `./workspace` | Host path mounted as the coding workspace |
+| `OLLAMA_NETWORK` | compose | `ollama_default` | Existing Docker network shared with Ollama |
+| `OLLAMA_HOST` | container | `http://ollama:11434` | Local Ollama endpoint, by container name on that network |
+| `OLLAMA_CLOUD_URL` | container | *(none)* | Optional hosted endpoint for requests the local model cannot serve |
+| `OLLAMA_API_KEY` | container | *(none)* | Key for `OLLAMA_CLOUD_URL`. Leave empty to stay entirely local |
+| `LOCAL_MODEL` | container | *(none)* | Model to prefer locally |
+| `FALLBACK_MODEL` | container | *(none)* | Model to fall back to |
+
+**`LOCAL_MODEL` and `FALLBACK_MODEL` have no defaults and no fallback.** Without
+them OpenCode starts normally and then has no model to select — it fails quietly
+rather than loudly, which is the failure worth knowing about here.
 
 ## Volumes
 
