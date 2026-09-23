@@ -18,7 +18,7 @@ docker compose -f docker/<stack>/compose.yaml config
 cd docker/<stack> && docker compose up -d --build
 
 # Stacks with CPU/GPU variants select the file explicitly
-cd docker/slideshow-gen && docker compose -f compose-gpu.yaml up -d --build
+cd docker/ollama && docker compose -f compose-igpu.yaml up -d
 
 # Syntax-check a Bash script without running it
 bash -n linux/Install-KDE-Plasma.sh
@@ -28,7 +28,7 @@ python docker/image-gen-cuda/download-models.py /path/to/models     # --sd15 --s
 python docker/comfyui-cuda/download-models.py /path/to/models       # --fill --flux2 --checkpoints --extras
 ```
 
-Editing `server.py` in `image-gen`, `image-gen-cuda`, or `slideshow-gen` does **not** require a rebuild — it is bind-mounted read-only into the container, so `docker compose restart` suffices. Dependency or Dockerfile changes need `--build`.
+Editing `server.py` in `image-gen` or `image-gen-cuda` does **not** require a rebuild — it is bind-mounted read-only into the container, so `docker compose restart` suffices. Dependency or Dockerfile changes need `--build`.
 
 ## Architecture
 
@@ -40,18 +40,6 @@ Both `server.py` files share a structure: a module-level `MODELS` registry (key 
 
 **When changing API surface, request/response models, style presets, or aspect ratios, mirror the change in both files** — drift breaks the drop-in property the README advertises. Backend-specific code (`OV_DEVICE` vs `TORCH_DEVICE`/`HALF_PRECISION`, model formats, the OpenVINO img2img outpaint fallback) legitimately differs.
 
-### `slideshow-gen` — six-stage pipeline with two front-ends
-
-`scripts/stage_*.py` are the pipeline. They are driven by either front-end and communicate through a shared working directory rather than function calls:
-
-1. **Narration Synthesis** — runs **first**, because it writes `durations.json`, which drives every subsequent slide timing. Routes English → Chatterbox, Hindi/Punjabi/Gujarati → IndicF5 (imported in-process; it does not call the `chatterbox-tts` stack over HTTP).
-2. Image Preparation (ImageMagick) → 3. Music Generation (MusicGen) → 4. Audio Mixing → 5. Video Segments + Overlays → 6. Final Assembly (FFmpeg).
-
-Front-ends:
-- `server.py` — persistent FastAPI job service. Multipart `POST /generate` writes a job into `/data/jobs/{job_id}/`; a **single daemon worker thread** pulls from a `Queue` and runs the stages sequentially. `status.json` on disk is the source of truth for progress, so jobs interrupted by a restart are re-queued at startup by `_restore_jobs()`. Old jobs are pruned past `MAX_STORED_JOBS`.
-- `entrypoint.sh` — legacy one-shot CLI. Parses flags, exports them as env vars, and invokes the same six stage scripts in order.
-
-A new stage or a changed stage contract must be updated in **both** `server.py` (the `STAGES` list and `_run_pipeline`) and `entrypoint.sh`.
 
 ### `comfyui-cuda` — no custom service
 
@@ -75,7 +63,7 @@ Registry dicts at the top (`MODELS`, `CHECKPOINTS`, `LORAS`, `EMBEDDINGS`, `UPSC
 - README must include: quick start, model/data setup, API docs, environment variables
 - **No PII** — this is a public repo. No hostnames, IPs, usernames, tokens, or identifying paths. Use `server-name`, `localhost`, `/path/to/models`
 
-Default host ports in use: 80/443 caddy · 3001 uptime-kuma · 5001 dockge · 5678 n8n · 6767 bazarr · 8004 chatterbox-tts · 8096 jellyfin · 8100 image-gen(-cuda) · 8110 iopaint-cuda · 8188 comfyui(-cuda) · 8189 slideshow-gen · 8880 kokoro-tts · 11434 ollama · 11435 ollama-ipex · 61208 glances.
+Default host ports in use: 80/443 caddy · 3001 uptime-kuma · 5001 dockge · 5678 n8n · 6767 bazarr · 8004 chatterbox-tts · 8096 jellyfin · 8100 image-gen(-cuda) · 8110 iopaint-cuda · 8188 comfyui(-cuda) · 8880 kokoro-tts · 11434 ollama · 11435 ollama-ipex · 61208 glances.
 
 ### PowerShell scripts (windows/)
 
@@ -94,7 +82,7 @@ Default host ports in use: 80/443 caddy · 3001 uptime-kuma · 5001 dockge · 56
 ## Git Workflow
 
 - `main` is the default branch; all new work goes to `dev` and reaches `main` via PR
-- Commit messages are Conventional Commits scoped to the stack or script: `feat(slideshow-gen): narration-driven slide timing`, `fix(ollama): ...`
+- Commit messages are Conventional Commits scoped to the stack or script: `feat(ollama): Vulkan iGPU variant`, `fix(ollama): ...`
 
 ### PII check — required before every `git add` and `git push`
 
