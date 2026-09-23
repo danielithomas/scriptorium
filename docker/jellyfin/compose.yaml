@@ -26,7 +26,11 @@ services:
       - TZ=${TZ:-UTC}
       - JELLYFIN_PublishedServerUrl=${SERVER_URL:-http://localhost:8096}
     group_add:
-      - "${RENDER_GROUP:-render}"  # GPU access group (check: getent group render)
+      # Both are needed for VAAPI: card* is owned by video, renderD* by render.
+      # The GIDs differ between distributions — check with:
+      #   getent group video render
+      - "${VIDEO_GID:-44}"
+      - "${RENDER_GID:-992}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
       interval: 30s
