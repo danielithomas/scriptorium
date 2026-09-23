@@ -35,7 +35,6 @@ Containerised service stacks for self-hosted AI, monitoring, and infrastructure.
 | [`iopaint-cuda`](docker/iopaint-cuda/) | NVIDIA GPU (CUDA) | IOPaint inpainting / object removal (LaMa, MI-GAN, diffusion models). | [README](docker/iopaint-cuda/README.md) |
 | [`chatterbox-tts`](docker/chatterbox-tts/) | CPU / NVIDIA GPU | Chatterbox voice cloning TTS server (CPU and CUDA). | [README](docker/chatterbox-tts/README.md) |
 | [`kokoro-tts`](docker/kokoro-tts/) | CPU | Lightweight OpenAI-compatible TTS server. | [README](docker/kokoro-tts/README.md) |
-| [`slideshow-gen`](docker/slideshow-gen/) | CPU / NVIDIA GPU | Slideshow video generator — TTS narration, MusicGen soundtrack, FFmpeg assembly. Job-queue REST API. | [README](docker/slideshow-gen/README.md) |
 | [`opencode`](docker/opencode/) | CPU | AI coding assistant container connected to Ollama. | [README](docker/opencode/README.md) |
 
 #### Infrastructure & Monitoring
@@ -70,9 +69,9 @@ Containerised service stacks for self-hosted AI, monitoring, and infrastructure.
 | Port | Stack | Port | Stack |
 |------|-------|------|-------|
 | 80 / 443 | caddy | 8188 | comfyui / comfyui-cuda |
-| 3001 | monitoring (Uptime Kuma) | 8189 | slideshow-gen |
-| 5001 | dockge | 8880 | kokoro-tts |
-| 5678 | n8n | 11434 | ollama |
+| 3001 | monitoring (Uptime Kuma) | 8880 | kokoro-tts |
+| 5001 | dockge | 11434 | ollama |
+| 5678 | n8n | | |
 | 6767 | jellyfin (Bazarr) | 11435 | ollama-ipex |
 | 8004 | chatterbox-tts | 61208 | monitoring (Glances) |
 | 8096 | jellyfin | | |

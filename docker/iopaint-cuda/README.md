@@ -106,7 +106,7 @@ startup.
 
 ### Sharing a cache with other stacks
 
-[`slideshow-gen`](../slideshow-gen/) already sets `HF_HOME=/models` and `TORCH_HOME=/models/torch`
+`slideshow-gen` (now a separate repository) already sets `HF_HOME=/models` and `TORCH_HOME=/models/torch`
 against its shared model root, so pointing iopaint at the same directories makes both stacks reuse
 one cache instead of downloading the same weights twice:
 

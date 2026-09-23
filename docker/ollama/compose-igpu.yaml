@@ -1,0 +1,42 @@
+# Ollama with Intel integrated GPU (and NPU) acceleration, via Vulkan.
+#
+# Use this instead of compose.yaml on hosts with an Intel Arc iGPU. It runs the
+# upstream ollama image and enables its Vulkan backend, rather than the separate
+# IPEX build used by the ollama-ipex stack.
+#
+#   docker compose -f compose-igpu.yaml up -d
+#
+# Find your render group GID before first use — it is not the same on every
+# distribution:
+#
+#   getent group render video
+#
+services:
+  ollama:
+    image: ollama/ollama:0.32.14
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      # Bind narrowly by setting OLLAMA_BIND; the default publishes on every
+      # interface, which is rarely what you want for an unauthenticated API.
+      - "${OLLAMA_BIND:-0.0.0.0}:${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ${OLLAMA_DATA:-./data}:/root/.ollama
+    devices:
+      # The iGPU. /dev/accel/accel0 is the NPU on Meteor Lake and later — drop
+      # that line on hardware without one.
+      - /dev/dri:/dev/dri
+      - /dev/accel/accel0:/dev/accel/accel0
+    group_add:
+      - "${VIDEO_GID:-44}"
+      - "${RENDER_GID:-992}"
+    environment:
+      # OLLAMA_HOST is the bind address *inside* the container and must stay
+      # 0.0.0.0; narrow the host side with OLLAMA_BIND above.
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
+      - OLLAMA_VULKAN=1
+      - OLLAMA_IGPU_ENABLE=1
+      - GGML_VK_VISIBLE_DEVICES=${GGML_VK_VISIBLE_DEVICES:-0}
+      # Uncomment if output is gibberish on an Intel iGPU:
+      # - GGML_VK_DISABLE_INTEGER_DOT_PRODUCT=1
