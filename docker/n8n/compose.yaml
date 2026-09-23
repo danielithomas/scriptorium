@@ -4,7 +4,9 @@ services:
     container_name: n8n
     restart: unless-stopped
     ports:
-      - "${N8N_PORT:-5678}:5678"
+      # Set N8N_BIND to narrow this. n8n holds a credential store and the
+      # default publishes it on every interface.
+      - "${N8N_BIND:-0.0.0.0}:${N8N_PORT:-5678}:5678"
     environment:
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
