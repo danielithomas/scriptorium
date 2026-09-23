@@ -4,6 +4,11 @@ services:
     container_name: opencode
     stdin_open: true
     tty: true
+    # OpenCode reads OLLAMA_CLOUD_URL, OLLAMA_API_KEY, LOCAL_MODEL and
+    # FALLBACK_MODEL from its own environment, so the file has to be passed in
+    # rather than only interpolated. Without this the container starts and has
+    # no model to select — it fails quietly rather than loudly.
+    env_file: .env
     volumes:
       - ${WORKSPACE_PATH:-./workspace}:/home/coder/workspace
       - opencode-config:/home/coder/.config
