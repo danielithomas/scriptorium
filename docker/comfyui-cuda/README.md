@@ -1,6 +1,6 @@
 # ComfyUI — NVIDIA CUDA (Multi-Model)
 
-[ComfyUI](https://github.com/comfyanonymous/ComfyUI) node-based image generation with NVIDIA CUDA acceleration. Supports **FLUX.1-dev**, **FLUX.2-klein-9B**, **SDXL**, **FLUX.1-Kontext-dev**, **HiDream-I1**, **HiDream-O1-Image**, and **Qwen-Image** on RTX 5080 / 16GB+ VRAM.
+[ComfyUI](https://github.com/comfyanonymous/ComfyUI) node-based image generation with NVIDIA CUDA acceleration. Supports **FLUX.1-dev**, **FLUX.2-klein** (9B and 4B), **SDXL**, **FLUX.1-Kontext-dev**, **HiDream-I1**, **HiDream-O1-Image**, and **Qwen-Image** on RTX 5080 / 16GB+ VRAM, plus **BiRefNet** for background removal.
 
 ## Architecture
 
@@ -64,6 +64,7 @@ python download-models.py /path/to/models              # FLUX.1-dev only (~18GB)
 python download-models.py /path/to/models --fill       # + FLUX.1-Fill-dev for outpainting (~22GB)
 python download-models.py /path/to/models --checkpoints # + SDXL base (~6.9GB)
 python download-models.py /path/to/models --flux2       # + FLUX.2-klein-9B (~17GB)
+python download-models.py /path/to/models --flux2-4b    # + FLUX.2-klein-4B + Qwen 3 4B encoder (~16GB, Apache-2.0)
 python download-models.py /path/to/models --kontext      # + FLUX.1-Kontext-dev (~22GB)
 python download-models.py /path/to/models --hidream     # + HiDream-I1 Dev FP8 (~32GB)
 python download-models.py /path/to/models --hidream-gguf # + HiDream-I1 Dev GGUF Q5_K_M (~13.5GB, fits 16GB VRAM)
@@ -71,6 +72,7 @@ python download-models.py /path/to/models --hidream-fast # + HiDream-I1 Fast FP8
 python download-models.py /path/to/models --hidream-o1  # + HiDream-O1-Image Dev MXFP8 (~8.9GB, self-contained)
 python download-models.py /path/to/models --hidream-o1-base # + HiDream-O1-Image base MXFP8 (~8.9GB)
 python download-models.py /path/to/models --qwen-image  # + Qwen-Image FP8 (~29GB)
+python download-models.py /path/to/models --background-removal # + BiRefNet matte (~444MB, MIT)
 python download-models.py /path/to/models --extras      # + embeddings, LoRAs, upscalers
 python download-models.py /path/to/models --all         # everything (~160GB+)
 python download-models.py --list                        # see all available downloads
@@ -95,6 +97,7 @@ docker compose up -d --build
 | FLUX.1-dev (fp8) | UNet + CLIP + VAE | ~18GB | `UNETLoader` | High quality text-to-image, 12B params |
 | FLUX.1-Fill-dev | UNet | ~22GB | `UNETLoader` | **Inpainting & outpainting** (purpose-built) |
 | FLUX.2-klein-9B | UNet | ~17GB | `UNETLoader` | Faster FLUX, 9B params |
+| FLUX.2-klein-4B | UNet + CLIP | ~16GB | `UNETLoader` + `CLIPLoader` | Apache-2.0, so usable for images that are sold; 4 steps distilled |
 | FLUX.1-Kontext-dev | UNet | ~22GB | `UNETLoader` | Context-aware image editing |
 | SDXL Base 1.0 | Checkpoint | ~6.9GB | `CheckpointLoaderSimple` | Mature ecosystem, LoRA support |
 | HiDream-I1 Dev (fp8) | UNet + 4×CLIP + VAE | ~32GB | `UNETLoader` + `QuadrupleCLIPLoader` | 17B DiT, requires 4 text encoders |
@@ -103,6 +106,7 @@ docker compose up -d --build
 | HiDream-O1-Image Dev (mxfp8) | Checkpoint (all-in-one) | ~8.9GB | `CheckpointLoaderSimple` | 8B pixel-native unified model, 28 steps — **best quality-per-GB here for a 16GB Blackwell card** |
 | HiDream-O1-Image base (mxfp8) | Checkpoint (all-in-one) | ~8.9GB | `CheckpointLoaderSimple` | Undistilled, 40–50 steps — marginal quality gain for ~2x the sampling time |
 | Qwen-Image (fp8) | UNet + CLIP + VAE | ~29GB | `UNETLoader` + `CLIPLoader` | 20B MMDiT, excellent multilingual text |
+| BiRefNet (general) | Matte | ~444MB | `LoadBackgroundRemovalModel` | Background removal with the core `RemoveBackground` node |
 
 All FLUX models share the same CLIP-L, T5-XXL, and VAE components. SDXL is a self-contained checkpoint. HiDream uses 4 dedicated text encoders (CLIP-G, CLIP-L, T5-XXL, Llama-3.1-8B). Qwen-Image uses a single Qwen 2.5 VL 7B encoder.
 
@@ -120,7 +124,8 @@ models/
 ├── vae/            ← VAE / autoencoder (VAELoader)
 ├── loras/          ← LoRA fine-tunes (shared with image-gen-cuda)
 ├── embeddings/     ← Textual inversions (shared with image-gen-cuda)
-└── upscaler/       ← Upscale models: UltraSharp, Nomos8k, RealESRGAN
+├── upscaler/       ← Upscale models: UltraSharp, Nomos8k, RealESRGAN
+└── background_removal/ ← Matting models: BiRefNet (LoadBackgroundRemovalModel)
 ```
 
 **Note:** `image-gen-cuda` downloads models in HuggingFace diffusers format (directories like `sdxl-base/`). ComfyUI expects single `.safetensors` checkpoint files in `checkpoints/`. The diffusers-format models won't appear in ComfyUI, but all shared auxiliary files (LoRAs, embeddings, upscaler) work across both.
@@ -153,6 +158,24 @@ Purpose-built for inpainting and outpainting by Black Forest Labs. Far superior 
 | `flux-2-klein-9b.safetensors` | `unet/` | ~17GB | FLUX.2-klein diffusion model |
 
 Uses the same `clip/` and `vae/` components as FLUX.1-dev.
+
+### FLUX.2-klein-4B (`--flux2-4b`)
+
+| File | Location | Size | Description |
+|------|----------|------|-------------|
+| `flux-2-klein-4b.safetensors` | `unet/` | ~7.8GB | FLUX.2-klein 4B diffusion model |
+| `qwen_3_4b.safetensors` | `clip/` | ~8GB | Qwen 3 4B text encoder |
+| `flux2-vae.safetensors` | `vae/` | ~335MB | FLUX.2 VAE, shared with the 9B (skipped if present) |
+
+Apache-2.0, where the 9B is FLUX Non-Commercial, so this is the klein to use for images that may be sold. ComfyUI's own template runs it distilled, at 4 steps and CFG 1.
+
+### Background removal (`--background-removal`)
+
+| File | Location | Size | Description |
+|------|----------|------|-------------|
+| `birefnet.safetensors` | `background_removal/` | ~444MB | BiRefNet general matte (MIT) |
+
+Loaded by the core `LoadBackgroundRemovalModel` node and used by `RemoveBackground`. `extra_model_paths.yaml` maps `background_removal/`; without that mapping ComfyUI only reads its own `models/background_removal` inside the container, which a rebuild loses. Its mask means *foreground*, while `JoinImageWithAlpha` treats a mask as *masked out*, so an `InvertMask` goes between them to get an RGBA cut-out.
 
 ### SDXL Base 1.0 (`--checkpoints`)
 
