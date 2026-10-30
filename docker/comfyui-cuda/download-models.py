@@ -2,9 +2,9 @@
 """
 Download models for ComfyUI (CUDA).
 
-Supports FLUX.1-dev, FLUX.2-klein, SDXL, HiDream-I1, HiDream-I1 GGUF,
-HiDream-I1 Fast, HiDream-O1-Image, Qwen-Image, and auxiliary models
-(embeddings, LoRAs, upscalers). ComfyUI uses separate component files for
+Supports FLUX.1-dev, FLUX.2-klein (9B and 4B), SDXL, HiDream-I1, HiDream-I1
+GGUF, HiDream-I1 Fast, HiDream-O1-Image, Qwen-Image, BiRefNet background
+removal, and auxiliary models (embeddings, LoRAs, upscalers). ComfyUI uses separate component files for
 FLUX/HiDream-I1/Qwen-Image (UNet/diffusion, CLIP, VAE) and single-file
 checkpoints for SD/SDXL and HiDream-O1.
 
@@ -15,6 +15,7 @@ Usage:
     python download-models.py --list
     python download-models.py /data/models --checkpoints    # SDXL checkpoint only
     python download-models.py /data/models --flux2          # Flux2-klein-9b
+    python download-models.py /data/models --flux2-4b       # Flux2-klein-4b + Qwen3 4B encoder (Apache-2.0)
     python download-models.py /data/models --hidream        # HiDream-I1 Dev FP8
     python download-models.py /data/models --hidream-gguf   # HiDream-I1 Dev GGUF (Q5_K_M)
     python download-models.py /data/models --hidream-fast   # HiDream-I1 Fast FP8 (16 steps)
@@ -22,6 +23,7 @@ Usage:
     python download-models.py /data/models --hidream-o1-base # HiDream-O1 base MXFP8 (50 steps)
     python download-models.py /data/models --hidream-o1-2604 # HiDream-O1 Dev-2604 BF16 (t2i-tuned, 16.4GB)
     python download-models.py /data/models --qwen-image     # Qwen-Image FP8
+    python download-models.py /data/models --background-removal  # BiRefNet matte (MIT)
 
 Requires: pip install huggingface-hub[cli]
 
@@ -138,6 +140,34 @@ FLUX2_COMPONENTS = {
         "required": True,
         "gated": False,
     },
+}
+
+# ─── FLUX.2-klein-4B ─────────────────────────────────────────────────────────
+# The 4B klein is Apache-2.0, where the 9B is FLUX Non-Commercial, so it is
+# the one to use for images that may be sold. It has its own, smaller Qwen 3
+# text encoder and shares the 9B's VAE (downloaded here too if missing).
+# ComfyUI's template runs it distilled: 4 steps at CFG 1.
+
+FLUX2_4B_COMPONENTS = {
+    "flux2-klein-4b": {
+        "hf_repo": "Comfy-Org/Flux-2-Klein-4B",
+        "hf_file": "split_files/diffusion_models/flux-2-klein-4b.safetensors",
+        "subdir": "unet",
+        "description": "FLUX.2-klein 4B diffusion model (Apache-2.0)",
+        "size_approx": "~7.8GB",
+        "required": True,
+        "gated": False,
+    },
+    "flux2-qwen3-4b": {
+        "hf_repo": "Comfy-Org/Flux-2-Klein-4B",
+        "hf_file": "split_files/text_encoders/qwen_3_4b.safetensors",
+        "subdir": "clip",
+        "description": "Qwen 3 4B text encoder for FLUX.2-klein-4B",
+        "size_approx": "~8GB",
+        "required": True,
+        "gated": False,
+    },
+    "flux2-vae": FLUX2_COMPONENTS["flux2-vae"],
 }
 
 # ─── FLUX.1-Kontext (Image Editing) ──────────────────────────────────────────
@@ -488,6 +518,25 @@ QWEN_IMAGE_COMPONENTS = {
     },
 }
 
+# ─── Background Removal ──────────────────────────────────────────────────────
+# Matting models for ComfyUI's core LoadBackgroundRemovalModel and
+# RemoveBackground nodes, which read background_removal/ (mapped in
+# extra_model_paths.yaml). BiRefNet general is MIT. Lucida, the BiRefNet_HR
+# fine-tune in the same repo, was compared against it on cartoon stickers and
+# lost, so it is not offered.
+
+BACKGROUND_REMOVAL = {
+    "birefnet": {
+        "hf_repo": "Comfy-Org/BiRefNet",
+        "hf_file": "background_removal/birefnet.safetensors",
+        "subdir": "background_removal",
+        "description": "BiRefNet general background removal (MIT)",
+        "size_approx": "~444MB",
+        "required": True,
+        "gated": False,
+    },
+}
+
 # ─── Upscalers ────────────────────────────────────────────────────────────────
 
 UPSCALERS = {
@@ -686,6 +735,7 @@ Model groups:
   (default)         FLUX.1-dev components (~18GB)
   --checkpoints     SDXL base checkpoint (~6.9GB)
   --flux2           FLUX.2-klein-9B (~17GB)
+  --flux2-4b        FLUX.2-klein-4B + Qwen 3 4B encoder (~16GB, Apache-2.0)
   --kontext         FLUX.1-Kontext-dev (~22GB)
   --hidream         HiDream-I1 Dev FP8 + text encoders (~32GB)
   --hidream-gguf    HiDream-I1 Dev GGUF Q5_K_M (~13.5GB, needs text encoders)
@@ -694,6 +744,7 @@ Model groups:
   --hidream-o1-base HiDream-O1 base MXFP8 (~8.9GB, self-contained)
   --hidream-o1-2604 HiDream-O1 Dev-2604 BF16 (~16.4GB, t2i-tuned, not in --all)
   --qwen-image      Qwen-Image FP8 + VL encoder (~29GB)
+  --background-removal  BiRefNet matte for RemoveBackground (~444MB)
   --extras          Embeddings, LoRAs, upscalers
   --all             Everything above
 
@@ -725,7 +776,8 @@ Model directory structure:
   ├── vae/            VAE / autoencoder
   ├── loras/          LoRA fine-tunes
   ├── embeddings/     Textual inversions
-  └── upscaler/       Upscale models (RealESRGAN, UltraSharp, Nomos8k)
+  ├── upscaler/       Upscale models (RealESRGAN, UltraSharp, Nomos8k)
+  └── background_removal/  Matting models (BiRefNet)
 
 This structure is shared with image-gen-cuda. If you point both stacks
 at the same MODELS_PATH, LoRAs, embeddings, and upscaler files are
@@ -740,7 +792,7 @@ shared automatically.
     )
     parser.add_argument(
         "--all", action="store_true",
-        help="Download everything: FLUX.1-dev + SDXL + FLUX.2 + Kontext + HiDream + HiDream GGUF + HiDream Fast + HiDream-O1 + Qwen-Image + extras",
+        help="Download everything: FLUX.1-dev + SDXL + FLUX.2 (9B and 4B) + Kontext + HiDream + HiDream GGUF + HiDream Fast + HiDream-O1 + Qwen-Image + background removal + extras",
     )
     parser.add_argument(
         "--flux", action="store_true", default=True,
@@ -753,6 +805,10 @@ shared automatically.
     parser.add_argument(
         "--flux2", action="store_true",
         help="Download FLUX.2-klein-9B diffusion model",
+    )
+    parser.add_argument(
+        "--flux2-4b", action="store_true", dest="flux2_4b",
+        help="Download FLUX.2-klein-4B with its Qwen 3 4B encoder (~16GB, Apache-2.0)",
     )
     parser.add_argument(
         "--kontext", action="store_true",
@@ -796,6 +852,10 @@ shared automatically.
         help="Download Qwen-Image (FP8) with Qwen 2.5 VL encoder (~29GB total)",
     )
     parser.add_argument(
+        "--background-removal", action="store_true", dest="background_removal",
+        help="Download BiRefNet for the RemoveBackground node (~444MB, MIT)",
+    )
+    parser.add_argument(
         "--extras", action="store_true",
         help="Download embeddings, LoRAs, and upscalers (included with --all)",
     )
@@ -826,6 +886,11 @@ shared automatically.
         for key, c in FLUX2_COMPONENTS.items():
             gated = " [gated]" if c.get("gated") else ""
             print(f"  {c['subdir'] + '/' + c['hf_file']:45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
+        print_header("FLUX.2-klein-4B (--flux2-4b or --all)")
+        for key, c in FLUX2_4B_COMPONENTS.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
 
         print_header("FLUX.1-Kontext-dev (--kontext or --all)")
         for key, c in FLUX_KONTEXT_COMPONENTS.items():
@@ -867,6 +932,11 @@ shared automatically.
             gated = " [gated]" if c.get("gated") else ""
             print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
 
+        print_header("Background Removal (--background-removal or --all)")
+        for key, c in BACKGROUND_REMOVAL.items():
+            gated = " [gated]" if c.get("gated") else ""
+            print(f"  {c['subdir'] + '/' + os.path.basename(c['hf_file']):45s}  {c['size_approx']:>6s}  {c['description']}{gated}")
+
         print_header("Checkpoints (--checkpoints or --all)")
         for key, c in CHECKPOINTS.items():
             gated = " [gated]" if c.get("gated") else ""
@@ -894,7 +964,8 @@ shared automatically.
     os.makedirs(models_dir, exist_ok=True)
 
     # Ensure all subdirectories exist
-    for subdir in ["checkpoints", "unet", "clip", "vae", "loras", "embeddings", "upscaler"]:
+    for subdir in ["checkpoints", "unet", "clip", "vae", "loras", "embeddings", "upscaler",
+                   "background_removal"]:
         os.makedirs(os.path.join(models_dir, subdir), exist_ok=True)
 
     total_downloaded = 0
@@ -916,6 +987,12 @@ shared automatically.
     if args.all or args.flux2:
         print_header("FLUX.2-klein-9B")
         d, s, f = download_registry(FLUX2_COMPONENTS, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
+
+    # ── FLUX.2-klein-4B ───────────────────────────────────────────────────────
+    if args.all or args.flux2_4b:
+        print_header("FLUX.2-klein-4B")
+        d, s, f = download_registry(FLUX2_4B_COMPONENTS, models_dir, force=args.force)
         total_downloaded += d; total_skipped += s; total_failed += f
 
     # ── FLUX.1-Kontext-dev ────────────────────────────────────────────────────
@@ -973,6 +1050,12 @@ shared automatically.
         d, s, f = download_registry(QWEN_IMAGE_COMPONENTS, models_dir, force=args.force)
         total_downloaded += d; total_skipped += s; total_failed += f
 
+    # ── Background removal ────────────────────────────────────────────────────
+    if args.all or args.background_removal:
+        print_header("Background Removal (BiRefNet)")
+        d, s, f = download_registry(BACKGROUND_REMOVAL, models_dir, force=args.force)
+        total_downloaded += d; total_skipped += s; total_failed += f
+
     # ── Checkpoints (SDXL) ────────────────────────────────────────────────────
     if args.all or args.checkpoints:
         print_header("Checkpoints (SDXL)")
@@ -1015,6 +1098,8 @@ shared automatically.
             not_downloaded.append("--fill (FLUX.1-Fill-dev inpaint/outpaint, ~22GB)")
         if not args.flux2:
             not_downloaded.append("--flux2 (FLUX.2-klein-9B, ~17GB)")
+        if not args.flux2_4b:
+            not_downloaded.append("--flux2-4b (FLUX.2-klein-4B + Qwen 3 4B encoder, ~16GB)")
         if not args.kontext:
             not_downloaded.append("--kontext (FLUX.1-Kontext-dev, ~22GB)")
         if not args.hidream:
@@ -1025,6 +1110,8 @@ shared automatically.
             not_downloaded.append("--hidream-fast (HiDream-I1 Fast FP8 diffusion only, ~17GB)")
         if not args.qwen_image:
             not_downloaded.append("--qwen-image (Qwen-Image FP8 + VL encoder, ~29GB)")
+        if not args.background_removal:
+            not_downloaded.append("--background-removal (BiRefNet matte, ~444MB)")
         if not args.checkpoints:
             not_downloaded.append("--checkpoints (SDXL base, ~6.9GB)")
         if not args.extras:
