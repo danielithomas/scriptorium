@@ -11,6 +11,7 @@
 #   ├── loras/          LoRA fine-tunes
 #   ├── embeddings/     Textual inversions (EasyNegative, etc.)
 #   ├── upscale_models/ Upscale models (RealESRGAN, UltraSharp, Nomos8k)
+#   ├── background_removal/ Matting models for RemoveBackground (BiRefNet)
 #   └── controlnet/     ControlNet models (if used)
 
 comfyui:
@@ -23,4 +24,5 @@ comfyui:
     loras: loras/
     embeddings: embeddings/
     upscale_models: upscaler/
+    background_removal: background_removal/
     # controlnet: controlnet/
