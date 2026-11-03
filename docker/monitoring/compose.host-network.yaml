@@ -1,0 +1,32 @@
+# Opt-in override: run Uptime Kuma in the host's network namespace.
+#
+#   COMPOSE_FILE=compose.yaml:compose.host-network.yaml    # in .env
+#
+# Use it when Kuma has to check something only the host itself can reach:
+#   - a service bound to 127.0.0.1;
+#   - a `tailscale serve` route on this same host. Since Tailscale 1.104,
+#     serve listens on the tailnet interface only (100.x.y.z%tailscale0 in
+#     `ss -ltn`). A check from a bridged container arrives on the Docker
+#     bridge and gets "connection refused", while the same URL works from
+#     the host and from other tailnet devices.
+#
+# Kuma then listens on the host directly, on all interfaces, at KUMA_PORT.
+#
+# NET_RAW is dropped. In the host's namespace it would let a compromised Kuma
+# read raw traffic on every interface, including other containers' bridge
+# traffic and the host's loopback. Ping monitors still work through
+# unprivileged ICMP sockets, provided the host's net.ipv4.ping_group_range
+# covers root's group (`sysctl net.ipv4.ping_group_range`; many distributions
+# default to "0 2147483647").
+#
+# Needs Docker Compose 2.24 or later, for `!reset`.
+services:
+  uptime-kuma:
+    network_mode: host
+    ports: !reset []
+    environment:
+      UPTIME_KUMA_PORT: ${KUMA_PORT:-3001}
+    cap_drop:
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
