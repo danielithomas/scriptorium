@@ -1,0 +1,46 @@
+# Ollama on an AMD Radeon GPU, through ROCm.
+#
+# Use this instead of compose.yaml on a host with a ROCm-capable Radeon. It runs
+# the upstream image's ROCm build, which carries its own ROCm runtime. So the
+# host needs only the kernel's amdgpu driver, which provides /dev/kfd and
+# /dev/dri. No ROCm packages on the host.
+#
+#   docker compose -f compose-rocm.yaml up -d
+#
+# Then check what it found. The line should say library=ROCm, and name the
+# card's gfx target (gfx1201 for an RX 9070 XT):
+#
+#   docker logs ollama 2>&1 | grep 'inference compute'
+#
+# Find your render and video group GIDs before first use. They differ between
+# distributions:
+#
+#   getent group render video
+#
+services:
+  ollama:
+    image: ollama/ollama:0.40.13-rocm
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      # Bind narrowly by setting OLLAMA_BIND; the default publishes on every
+      # interface, which is rarely what you want for an unauthenticated API.
+      - "${OLLAMA_BIND:-0.0.0.0}:${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ${OLLAMA_DATA:-./data}:/root/.ollama
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - "${VIDEO_GID:-44}"
+      - "${RENDER_GID:-992}"
+    environment:
+      # OLLAMA_HOST is the bind address *inside* the container and must stay
+      # 0.0.0.0; narrow the host side with OLLAMA_BIND above.
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
+      # Long prompts. Flash attention with an 8-bit KV cache (q8_0) roughly
+      # halves the memory a long context takes, so more of a large model stays
+      # on the card. Empty leaves Ollama's defaults. Measure before keeping them.
+      - OLLAMA_FLASH_ATTENTION=${OLLAMA_FLASH_ATTENTION:-}
+      - OLLAMA_KV_CACHE_TYPE=${OLLAMA_KV_CACHE_TYPE:-}
